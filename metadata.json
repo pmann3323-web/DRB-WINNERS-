@@ -1,0 +1,6 @@
+{
+  "name": "DRB WINNERS",
+  "description": "Complete tournament management platform for DRB WINNERS with local database backend, live match score controls, brackets, team management, and leaderboards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
