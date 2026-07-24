@@ -45,7 +45,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
 import com.example.data.db.entity.ParticipantEntity
+import com.example.data.db.entity.QualifiedSquadEntity
 import com.example.data.db.entity.TournamentEntity
+import com.example.data.db.entity.TournamentSeriesEntity
 import com.example.ui.theme.EmeraldGreen
 import com.example.ui.theme.GoldAccent
 import com.example.ui.theme.LiveRed
@@ -59,6 +61,8 @@ fun MyTournamentsScreen(
     val context = LocalContext.current
     val joinedList by viewModel.joinedTournaments.collectAsStateWithLifecycle()
     val allTournaments by viewModel.allTournaments.collectAsStateWithLifecycle()
+    val allSeries by viewModel.allSeries.collectAsStateWithLifecycle()
+    val allQualifiedSquads by viewModel.allQualifiedSquads.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -67,20 +71,74 @@ fun MyTournamentsScreen(
             .testTag("my_tournaments_screen")
     ) {
         Text(
-            text = "Joined Tournaments",
+            text = "Joined & Qualified Tournaments",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
         Text(
-            text = "Manage your tournament registrations and upcoming matches",
+            text = "Manage your tournament registrations, qualifiers, and final room details",
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (joinedList.isEmpty()) {
+        if (allQualifiedSquads.isNotEmpty()) {
+            Text(
+                text = "⭐ Qualified for Finals",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = GoldAccent
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            allQualifiedSquads.forEach { squad ->
+                val series = allSeries.find { it.id == squad.seriesId }
+                if (series != null) {
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(GoldAccent, RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text("QUALIFIED FINALIST", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(series.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text("Squad: ${squad.squadName} (Captain: ${squad.captainName})", fontSize = 13.sp, color = EmeraldGreen, fontWeight = FontWeight.Bold)
+                            Text("Qualified Rank #${squad.qualifierRank} · ${squad.killsCount} Qualifier Kills", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                    .padding(10.dp)
+                            ) {
+                                Text(
+                                    text = "🔒 Final Room ID & Password will be unlocked 5 minutes before match start time.",
+                                    fontSize = 11.sp,
+                                    color = GoldAccent,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        if (joinedList.isEmpty() && allQualifiedSquads.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

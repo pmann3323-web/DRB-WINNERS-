@@ -9,8 +9,10 @@ import com.example.data.db.entity.AnnouncementEntity
 import com.example.data.db.entity.MatchEntity
 import com.example.data.db.entity.NotificationEntity
 import com.example.data.db.entity.ParticipantEntity
+import com.example.data.db.entity.QualifiedSquadEntity
 import com.example.data.db.entity.TeamEntity
 import com.example.data.db.entity.TournamentEntity
+import com.example.data.db.entity.TournamentSeriesEntity
 import com.example.data.db.entity.UserEntity
 import com.example.data.db.entity.WalletTransactionEntity
 import com.example.data.repository.TournamentRepository
@@ -38,6 +40,8 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
 
     val currentUser: StateFlow<UserEntity?>
     val allTournaments: StateFlow<List<TournamentEntity>>
+    val allSeries: StateFlow<List<TournamentSeriesEntity>>
+    val allQualifiedSquads: StateFlow<List<QualifiedSquadEntity>>
     val activeSplashAd: StateFlow<AdEntity?>
     val activeBannerAds: StateFlow<List<AdEntity>>
     val userTransactions: StateFlow<List<WalletTransactionEntity>>
@@ -74,7 +78,20 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
             db.walletDao(),
             db.adDao(),
             db.notificationDao(),
-            db.participantDao()
+            db.participantDao(),
+            db.tournamentSeriesDao()
+        )
+
+        allSeries = repository.allSeries.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+        allQualifiedSquads = repository.allQualifiedSquads.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
         )
 
         viewModelScope.launch {
@@ -313,11 +330,35 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         startDate: String,
         description: String,
         rules: String,
+        roomId: String = "",
+        roomPassword: String = "",
+        matchStartTimeMillis: Long = System.currentTimeMillis() + 600000L,
+        matchMode: String = "Squad",
+        firstPrize: Double = 300.0,
+        secondPrize: Double = 150.0,
+        thirdPrize: Double = 50.0,
+        perKillPrize: Double = 10.0,
         onCreated: (Long) -> Unit
     ) {
         viewModelScope.launch {
             val newId = repository.createTournament(
-                title, gameType, format, totalTeams, prizePool, startDate, description, rules, entryFee
+                title = title,
+                gameType = gameType,
+                format = format,
+                totalTeams = totalTeams,
+                prizePool = prizePool,
+                startDate = startDate,
+                description = description,
+                rules = rules,
+                entryFee = entryFee,
+                roomId = roomId,
+                roomPassword = roomPassword,
+                matchStartTimeMillis = matchStartTimeMillis,
+                matchMode = matchMode,
+                firstPrize = firstPrize,
+                secondPrize = secondPrize,
+                thirdPrize = thirdPrize,
+                perKillPrize = perKillPrize
             )
             onCreated(newId)
         }
@@ -378,6 +419,101 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             repository.addAnnouncement(tournamentId, title, content)
             onDone()
+        }
+    }
+
+    fun createTournamentSeries(
+        title: String,
+        gameType: String = "Free Fire",
+        matchMode: String = "Squad",
+        qualifiersCount: Int = 6,
+        topQualifyPerRoom: Int = 2,
+        entryFeePerSquad: Double = 100.0,
+        prizePool: String = "₹20,000",
+        firstPrize: Double = 10000.0,
+        secondPrize: Double = 5000.0,
+        thirdPrize: Double = 2500.0,
+        perKillPrize: Double = 50.0,
+        onCreated: (Long) -> Unit
+    ) {
+        viewModelScope.launch {
+            val seriesId = repository.createTournamentSeries(
+                title = title,
+                gameType = gameType,
+                matchMode = matchMode,
+                qualifiersCount = qualifiersCount,
+                topQualifyPerRoom = topQualifyPerRoom,
+                entryFeePerSquad = entryFeePerSquad,
+                prizePool = prizePool,
+                firstPrize = firstPrize,
+                secondPrize = secondPrize,
+                thirdPrize = thirdPrize,
+                perKillPrize = perKillPrize
+            )
+            onCreated(seriesId)
+        }
+    }
+
+    fun addQualifiedSquad(
+        seriesId: Long,
+        qualifierTournamentId: Long,
+        squadName: String,
+        captainName: String,
+        userId: String = "",
+        inGameId: String = "",
+        qualifierRank: Int = 1,
+        killsCount: Int = 0,
+        points: Int = 0,
+        onAdded: () -> Unit
+    ) {
+        viewModelScope.launch {
+            repository.addQualifiedSquad(
+                seriesId = seriesId,
+                qualifierTournamentId = qualifierTournamentId,
+                squadName = squadName,
+                captainName = captainName,
+                userId = userId,
+                inGameId = inGameId,
+                qualifierRank = qualifierRank,
+                killsCount = killsCount,
+                points = points
+            )
+            onAdded()
+        }
+    }
+
+    fun deleteQualifiedSquad(id: Long) {
+        viewModelScope.launch {
+            repository.deleteQualifiedSquad(id)
+        }
+    }
+
+    fun generateFinalTournament(seriesId: Long, onCreated: (Long) -> Unit) {
+        viewModelScope.launch {
+            val finalId = repository.generateFinalTournament(seriesId)
+            onCreated(finalId)
+        }
+    }
+
+    fun declareSeriesWinners(
+        seriesId: Long,
+        winnerTeamName: String,
+        winnerCaptain: String,
+        winnerKills: Int,
+        secondTeamName: String,
+        thirdTeamName: String,
+        onDeclared: () -> Unit
+    ) {
+        viewModelScope.launch {
+            repository.declareSeriesWinners(
+                seriesId = seriesId,
+                winnerTeamName = winnerTeamName,
+                winnerCaptain = winnerCaptain,
+                winnerKills = winnerKills,
+                secondTeamName = secondTeamName,
+                thirdTeamName = thirdTeamName
+            )
+            onDeclared()
         }
     }
 

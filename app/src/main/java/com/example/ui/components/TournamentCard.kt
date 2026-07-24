@@ -202,8 +202,8 @@ fun TournamentCard(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = tournament.format,
-                            fontSize = 13.sp,
+                            text = "${tournament.matchMode} • ${tournament.format}",
+                            fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -217,8 +217,8 @@ fun TournamentCard(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "${tournament.currentTeamsCount}/${tournament.totalTeams} Teams",
-                            fontSize = 13.sp,
+                            text = "${tournament.currentTeamsCount}/${tournament.totalTeams} Slots",
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )

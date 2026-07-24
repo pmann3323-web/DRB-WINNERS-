@@ -43,21 +43,30 @@ fun CreateTournamentDialog(
     onTournamentCreated: () -> Unit
 ) {
     var title by remember { mutableStateOf("") }
-    var selectedGameType by remember { mutableStateOf("BGMI/Esports") }
+    var selectedGameType by remember { mutableStateOf("Free Fire") }
     var gameDropdownExpanded by remember { mutableStateOf(false) }
+    var selectedMatchMode by remember { mutableStateOf("Squad") }
+    var modeDropdownExpanded by remember { mutableStateOf(false) }
     var selectedFormat by remember { mutableStateOf("Single Elimination") }
     var formatDropdownExpanded by remember { mutableStateOf(false) }
-    var totalTeams by remember { mutableStateOf("8") }
+    var totalTeams by remember { mutableStateOf("25") }
     var entryFee by remember { mutableStateOf("50") }
-    var prizePool by remember { mutableStateOf("₹50,000") }
-    var startDate by remember { mutableStateOf("30 July 2026") }
+    var prizePool by remember { mutableStateOf("₹5,000") }
+    var firstPrize by remember { mutableStateOf("2500") }
+    var secondPrize by remember { mutableStateOf("1200") }
+    var thirdPrize by remember { mutableStateOf("600") }
+    var perKillPrize by remember { mutableStateOf("20") }
+    var startDate by remember { mutableStateOf("30 July 2026, 8:00 PM") }
     var description by remember { mutableStateOf("") }
-    var rules by remember { mutableStateOf("1. Fair play mandatory.\n2. Arrive 15 mins prior.\n3. Referee decision final.") }
+    var rules by remember { mutableStateOf("1. Fair play mandatory. Emulators allowed based on mode.\n2. Check-in 15 mins prior.\n3. Referee decision final.") }
+    var roomId by remember { mutableStateOf("FF-8899") }
+    var roomPassword by remember { mutableStateOf("PASS777") }
 
     var errorMsg by remember { mutableStateOf("") }
 
-    val gameOptions = listOf("BGMI/Esports", "Cricket", "Football", "Chess", "Valorant", "Badminton")
-    val formatOptions = listOf("Single Elimination", "Round Robin", "League")
+    val gameOptions = listOf("Free Fire", "BGMI / PUBG Mobile", "Valorant", "Chess", "Cricket", "Football")
+    val modeOptions = listOf("Solo", "Duo", "Squad")
+    val formatOptions = listOf("Single Elimination", "Round Robin", "League", "Battle Royale Points System")
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -73,7 +82,7 @@ fun CreateTournamentDialog(
                     .verticalScroll(rememberScrollState())
             ) {
                 Text(
-                    text = "Create New Tournament",
+                    text = "Create Esports Tournament",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -95,7 +104,7 @@ fun CreateTournamentDialog(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("Tournament Title") },
-                    placeholder = { Text("e.g. Summer Esports Championship") },
+                    placeholder = { Text("e.g. Free Fire Squad Championship") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("input_tournament_title"),
@@ -113,7 +122,7 @@ fun CreateTournamentDialog(
                         value = selectedGameType,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Game / Sport Type") },
+                        label = { Text("Game Select (Free Fire / PUBG)") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = gameDropdownExpanded) },
                         modifier = Modifier
                             .menuAnchor()
@@ -129,6 +138,39 @@ fun CreateTournamentDialog(
                                 onClick = {
                                     selectedGameType = option
                                     gameDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Match Mode (Solo / Duo / Squad)
+                ExposedDropdownMenuBox(
+                    expanded = modeDropdownExpanded,
+                    onExpandedChange = { modeDropdownExpanded = !modeDropdownExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = selectedMatchMode,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Match Mode (Solo / Duo / Squad)") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modeDropdownExpanded) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = modeDropdownExpanded,
+                        onDismissRequest = { modeDropdownExpanded = false }
+                    ) {
+                        modeOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    selectedMatchMode = option
+                                    modeDropdownExpanded = false
                                 }
                             )
                         }
@@ -174,7 +216,7 @@ fun CreateTournamentDialog(
                     OutlinedTextField(
                         value = totalTeams,
                         onValueChange = { totalTeams = it },
-                        label = { Text("Total Teams") },
+                        label = { Text("Total Slots") },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("input_total_teams"),
@@ -182,12 +224,55 @@ fun CreateTournamentDialog(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     OutlinedTextField(
-                        value = prizePool,
-                        onValueChange = { prizePool = it },
-                        label = { Text("Prize Pool") },
+                        value = entryFee,
+                        onValueChange = { entryFee = it },
+                        label = { Text("Entry Fee (₹)") },
                         modifier = Modifier
                             .weight(1f)
-                            .testTag("input_prize_pool"),
+                            .testTag("input_entry_fee"),
+                        singleLine = true
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text("Prize Pool Breakdown (Rank Prizes)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = firstPrize,
+                        onValueChange = { firstPrize = it },
+                        label = { Text("🥇 1st Rank (₹)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    OutlinedTextField(
+                        value = secondPrize,
+                        onValueChange = { secondPrize = it },
+                        label = { Text("🥈 2nd Rank (₹)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = thirdPrize,
+                        onValueChange = { thirdPrize = it },
+                        label = { Text("🥉 3rd Rank (₹)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    OutlinedTextField(
+                        value = perKillPrize,
+                        onValueChange = { perKillPrize = it },
+                        label = { Text("⚔️ Per Kill (₹)") },
+                        modifier = Modifier.weight(1f),
                         singleLine = true
                     )
                 }
@@ -195,9 +280,20 @@ fun CreateTournamentDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
+                    value = prizePool,
+                    onValueChange = { prizePool = it },
+                    label = { Text("Total Prize Pool Banner Text") },
+                    placeholder = { Text("e.g. ₹5,000") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
                     value = startDate,
                     onValueChange = { startDate = it },
-                    label = { Text("Start Date") },
+                    label = { Text("Start Date / Time") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -208,10 +304,30 @@ fun CreateTournamentDialog(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("Description") },
-                    placeholder = { Text("Short overview of tournament...") },
+                    placeholder = { Text("Short overview of match...") },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 3
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = roomId,
+                        onValueChange = { roomId = it },
+                        label = { Text("Room ID") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    OutlinedTextField(
+                        value = roomPassword,
+                        onValueChange = { roomPassword = it },
+                        label = { Text("Room Password") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
@@ -234,8 +350,12 @@ fun CreateTournamentDialog(
                                 errorMsg = "Please enter a tournament title."
                                 return@Button
                             }
-                            val count = totalTeams.toIntOrNull() ?: 8
+                            val count = totalTeams.toIntOrNull() ?: 25
                             val fee = entryFee.toDoubleOrNull() ?: 50.0
+                            val p1 = firstPrize.toDoubleOrNull() ?: 2500.0
+                            val p2 = secondPrize.toDoubleOrNull() ?: 1200.0
+                            val p3 = thirdPrize.toDoubleOrNull() ?: 600.0
+                            val pk = perKillPrize.toDoubleOrNull() ?: 20.0
                             viewModel.createTournament(
                                 title = title,
                                 gameType = selectedGameType,
@@ -244,8 +364,15 @@ fun CreateTournamentDialog(
                                 entryFee = fee,
                                 prizePool = prizePool,
                                 startDate = startDate,
-                                description = description.ifBlank { "Exciting ${selectedGameType} tournament!" },
+                                description = description.ifBlank { "Exciting ${selectedGameType} ${selectedMatchMode} tournament!" },
                                 rules = rules,
+                                roomId = roomId,
+                                roomPassword = roomPassword,
+                                matchMode = selectedMatchMode,
+                                firstPrize = p1,
+                                secondPrize = p2,
+                                thirdPrize = p3,
+                                perKillPrize = pk,
                                 onCreated = { onTournamentCreated() }
                             )
                         },

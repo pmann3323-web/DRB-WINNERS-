@@ -13,13 +13,16 @@ import com.example.data.db.dao.TeamDao
 import com.example.data.db.dao.TournamentDao
 import com.example.data.db.dao.UserDao
 import com.example.data.db.dao.WalletDao
+import com.example.data.db.dao.TournamentSeriesDao
 import com.example.data.db.entity.AdEntity
 import com.example.data.db.entity.AnnouncementEntity
 import com.example.data.db.entity.MatchEntity
 import com.example.data.db.entity.NotificationEntity
 import com.example.data.db.entity.ParticipantEntity
+import com.example.data.db.entity.QualifiedSquadEntity
 import com.example.data.db.entity.TeamEntity
 import com.example.data.db.entity.TournamentEntity
+import com.example.data.db.entity.TournamentSeriesEntity
 import com.example.data.db.entity.UserEntity
 import com.example.data.db.entity.WalletTransactionEntity
 
@@ -33,9 +36,11 @@ import com.example.data.db.entity.WalletTransactionEntity
         WalletTransactionEntity::class,
         AdEntity::class,
         NotificationEntity::class,
-        ParticipantEntity::class
+        ParticipantEntity::class,
+        TournamentSeriesEntity::class,
+        QualifiedSquadEntity::class
     ],
-    version = 2,
+    version = 5,
     exportSchema = false
 )
 abstract class TournamentDatabase : RoomDatabase() {
@@ -48,6 +53,7 @@ abstract class TournamentDatabase : RoomDatabase() {
     abstract fun adDao(): AdDao
     abstract fun notificationDao(): NotificationDao
     abstract fun participantDao(): ParticipantDao
+    abstract fun tournamentSeriesDao(): TournamentSeriesDao
 
     companion object {
         @Volatile

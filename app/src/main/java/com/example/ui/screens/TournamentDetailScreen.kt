@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -26,7 +30,9 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Sports
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -88,6 +95,11 @@ fun TournamentDetailScreen(
     val teams by viewModel.teamsForSelectedTournament.collectAsStateWithLifecycle()
     val matches by viewModel.matchesForSelectedTournament.collectAsStateWithLifecycle()
     val announcements by viewModel.announcementsForSelectedTournament.collectAsStateWithLifecycle()
+    val participants by viewModel.participantsForSelectedTournament.collectAsStateWithLifecycle()
+    val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
+    val isAdminMode by viewModel.isAdminMode.collectAsStateWithLifecycle()
+
+    val userHasJoined = participants.any { it.userId == currentUserId } || isAdminMode
 
     var selectedTabIndex by remember { mutableStateOf(0) }
     var showAddTeamDialog by remember { mutableStateOf(false) }
@@ -297,6 +309,8 @@ fun TournamentDetailScreen(
                     2 -> OverviewTab(
                         tournament = currentTournament,
                         teamsCount = teams.size,
+                        userHasJoined = userHasJoined,
+                        isAdminMode = isAdminMode,
                         onRegisterClick = { showAddTeamDialog = true }
                     )
                     3 -> AnnouncementsTab(announcements = announcements)
@@ -344,9 +358,115 @@ fun TournamentDetailScreen(
 fun OverviewTab(
     tournament: com.example.data.db.entity.TournamentEntity,
     teamsCount: Int,
+    userHasJoined: Boolean,
+    isAdminMode: Boolean,
     onRegisterClick: () -> Unit
 ) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item {
+            RoomCredentialsCard(
+                tournament = tournament,
+                userHasJoined = userHasJoined,
+                isAdmin = isAdminMode,
+                onJoinClick = onRegisterClick
+            )
+        }
+
+        // Rank Prize Pool Breakdown Card
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "🏆 Rank Prize Distribution",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GoldAccent
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = GoldAccent.copy(alpha = 0.15f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("🥇 1st Rank", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GoldAccent)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("₹${tournament.firstPrize.toInt()}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.LightGray.copy(alpha = 0.15f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("🥈 2nd Rank", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.LightGray)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("₹${tournament.secondPrize.toInt()}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFCD7F32).copy(alpha = 0.15f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("🥉 3rd Rank", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFCD7F32))
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("₹${tournament.thirdPrize.toInt()}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("⚔️ Per Kill Bonus:", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("₹${tournament.perKillPrize.toInt()} / kill", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = EmeraldGreen)
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🎮 Mode:", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(tournament.matchMode, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = GoldAccent)
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -421,6 +541,203 @@ fun OverviewTab(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(text = "Register Your Squad Now", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun RoomCredentialsCard(
+    tournament: com.example.data.db.entity.TournamentEntity,
+    userHasJoined: Boolean,
+    isAdmin: Boolean,
+    onJoinClick: () -> Unit
+) {
+    val context = LocalContext.current
+    var currentTimeMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(1000)
+            currentTimeMillis = System.currentTimeMillis()
+        }
+    }
+
+    val matchTime = tournament.matchStartTimeMillis
+    val fiveMinBeforeMatch = matchTime - (5 * 60 * 1000L)
+    val timeRemainingUntilReveal = fiveMinBeforeMatch - currentTimeMillis
+    val isRoomVisible = currentTimeMillis >= fiveMinBeforeMatch || isAdmin
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth().testTag("room_credentials_card")
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.VpnKey,
+                        contentDescription = null,
+                        tint = GoldAccent,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Room ID & Password",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                if (userHasJoined) {
+                    Box(
+                        modifier = Modifier
+                            .background(EmeraldGreen.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("REGISTERED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = EmeraldGreen)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (!userHasJoined) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "🔒 Room details are protected",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Only players who join this tournament can view Room ID & Password.",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = onJoinClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Join Tournament Now", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            } else {
+                if (!isRoomVisible) {
+                    val totalSec = (timeRemainingUntilReveal / 1000).coerceAtLeast(0)
+                    val mins = totalSec / 60
+                    val secs = totalSec % 60
+                    val countdownStr = String.format(Locale.getDefault(), "%02dm %02ds", mins, secs)
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(GoldAccent.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                            .padding(14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "⏳ Room Reveal Countdown: $countdownStr",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp,
+                            color = GoldAccent
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Room details will be available 5 minutes before the match.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(EmeraldGreen.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                            .padding(14.dp)
+                    ) {
+                        Text(
+                            text = "🔓 Room Unlocked - Match Ready!",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = EmeraldGreen
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("ROOM ID", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = tournament.roomId.ifBlank { "BGMI-8899" },
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = GoldAccent
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    val clip = ClipData.newPlainText("Room ID", tournament.roomId)
+                                    clipboard.setPrimaryClip(clip)
+                                    Toast.makeText(context, "Room ID Copied!", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Copy ID", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("ROOM PASSWORD", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = tournament.roomPassword.ifBlank { "PASS777" },
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    val clip = ClipData.newPlainText("Room Password", tournament.roomPassword)
+                                    clipboard.setPrimaryClip(clip)
+                                    Toast.makeText(context, "Room Password Copied!", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.White),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Copy Pass", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
             }
         }
     }

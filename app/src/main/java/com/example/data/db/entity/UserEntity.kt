@@ -10,7 +10,7 @@ data class UserEntity(
     val email: String = "mannpatel9094@gmail.com",
     val profilePic: String = "",
     val walletBalance: Double = 500.0,
-    val referralCode: String = "MANN9094",
+    val referralCode: String = "SIDHUMOSEWALA",
     val referredBy: String = "",
     val isBanned: Boolean = false,
     val role: String = "USER", // "USER" or "ADMIN"

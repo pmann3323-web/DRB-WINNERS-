@@ -8,6 +8,7 @@ import com.example.data.db.dao.NotificationDao
 import com.example.data.db.dao.ParticipantDao
 import com.example.data.db.dao.TeamDao
 import com.example.data.db.dao.TournamentDao
+import com.example.data.db.dao.TournamentSeriesDao
 import com.example.data.db.dao.UserDao
 import com.example.data.db.dao.WalletDao
 import com.example.data.db.entity.AdEntity
@@ -15,8 +16,10 @@ import com.example.data.db.entity.AnnouncementEntity
 import com.example.data.db.entity.MatchEntity
 import com.example.data.db.entity.NotificationEntity
 import com.example.data.db.entity.ParticipantEntity
+import com.example.data.db.entity.QualifiedSquadEntity
 import com.example.data.db.entity.TeamEntity
 import com.example.data.db.entity.TournamentEntity
+import com.example.data.db.entity.TournamentSeriesEntity
 import com.example.data.db.entity.UserEntity
 import com.example.data.db.entity.WalletTransactionEntity
 import kotlinx.coroutines.flow.Flow
@@ -31,15 +34,21 @@ class TournamentRepository(
     private val walletDao: WalletDao,
     private val adDao: AdDao,
     private val notificationDao: NotificationDao,
-    private val participantDao: ParticipantDao
+    private val participantDao: ParticipantDao,
+    private val seriesDao: TournamentSeriesDao
 ) {
     val allTournaments: Flow<List<TournamentEntity>> = tournamentDao.getAllTournaments()
+    val allSeries: Flow<List<TournamentSeriesEntity>> = seriesDao.getAllSeries()
+    val allQualifiedSquads: Flow<List<QualifiedSquadEntity>> = seriesDao.getAllQualifiedSquads()
     val activeSplashAd: Flow<AdEntity?> = adDao.getActiveSplashAd()
     val activeBannerAds: Flow<List<AdEntity>> = adDao.getActiveBannerAds()
     val allAds: Flow<List<AdEntity>> = adDao.getAllAds()
     val allUsers: Flow<List<UserEntity>> = userDao.getAllUsers()
     val pendingTransactions: Flow<List<WalletTransactionEntity>> = walletDao.getPendingTransactions()
     val allTransactions: Flow<List<WalletTransactionEntity>> = walletDao.getAllTransactions()
+
+    fun getSeriesById(seriesId: Long): Flow<TournamentSeriesEntity?> = seriesDao.getSeriesById(seriesId)
+    fun getQualifiedSquadsForSeries(seriesId: Long): Flow<List<QualifiedSquadEntity>> = seriesDao.getQualifiedSquadsForSeries(seriesId)
 
     fun getUser(userId: String): Flow<UserEntity?> = userDao.getUserById(userId)
 
@@ -73,7 +82,15 @@ class TournamentRepository(
         description: String,
         rules: String,
         entryFee: Double = 50.0,
-        maxPlayers: Int = 100
+        maxPlayers: Int = 100,
+        roomId: String = "",
+        roomPassword: String = "",
+        matchStartTimeMillis: Long = System.currentTimeMillis() + 600000L,
+        matchMode: String = "Squad",
+        firstPrize: Double = 300.0,
+        secondPrize: Double = 150.0,
+        thirdPrize: Double = 50.0,
+        perKillPrize: Double = 10.0
     ): Long {
         val newTournament = TournamentEntity(
             title = title,
@@ -89,7 +106,15 @@ class TournamentRepository(
             description = description,
             rules = rules,
             maxPlayers = maxPlayers,
-            registrationOpen = true
+            registrationOpen = true,
+            roomId = roomId.ifBlank { "ROOM-${(1000..9999).random()}" },
+            roomPassword = roomPassword.ifBlank { "PASS-${(100..999).random()}" },
+            matchStartTimeMillis = matchStartTimeMillis,
+            matchMode = matchMode,
+            firstPrize = firstPrize,
+            secondPrize = secondPrize,
+            thirdPrize = thirdPrize,
+            perKillPrize = perKillPrize
         )
         return tournamentDao.insertTournament(newTournament)
     }
@@ -500,6 +525,222 @@ class TournamentRepository(
         )
     }
 
+    suspend fun createTournamentSeries(
+        title: String,
+        gameType: String = "Free Fire",
+        matchMode: String = "Squad",
+        qualifiersCount: Int = 6,
+        topQualifyPerRoom: Int = 2,
+        entryFeePerSquad: Double = 100.0,
+        prizePool: String = "₹20,000",
+        firstPrize: Double = 10000.0,
+        secondPrize: Double = 5000.0,
+        thirdPrize: Double = 2500.0,
+        perKillPrize: Double = 50.0
+    ): Long {
+        val series = TournamentSeriesEntity(
+            title = title,
+            gameType = gameType,
+            matchMode = matchMode,
+            totalQualifiersCount = qualifiersCount,
+            topQualifyPerRoom = topQualifyPerRoom,
+            entryFeePerSquad = entryFeePerSquad,
+            totalPrizePool = prizePool,
+            firstPrize = firstPrize,
+            secondPrize = secondPrize,
+            thirdPrize = thirdPrize,
+            perKillPrize = perKillPrize,
+            status = "QUALIFIERS_IN_PROGRESS"
+        )
+        val seriesId = seriesDao.insertSeries(series)
+
+        // Automatically generate `qualifiersCount` Qualifier Tournaments (Bermuda Custom Rooms)
+        for (i in 1..qualifiersCount) {
+            val qTitle = "$title - Bermuda Qualifier #$i"
+            val roomId = "FF-Q$i-${(100..999).random()}"
+            val roomPass = "PASS-${(100..999).random()}"
+            
+            tournamentDao.insertTournament(
+                TournamentEntity(
+                    title = qTitle,
+                    gameType = gameType,
+                    format = "Battle Royale Points System",
+                    status = "UPCOMING",
+                    startDate = "Stage 1 Qualifier #$i",
+                    totalTeams = 25,
+                    currentTeamsCount = 0,
+                    entryFee = entryFeePerSquad,
+                    prizePool = prizePool,
+                    bannerResId = R.drawable.img_tournament_hero_1784788925449,
+                    description = "Official Bermuda Qualifier #$i for $title. Top $topQualifyPerRoom squads qualify for the Grand Final!",
+                    rules = "1. Bermuda Map.\n2. Emulators disallowed unless approved.\n3. Top $topQualifyPerRoom squads qualify automatically.",
+                    roomId = roomId,
+                    roomPassword = roomPass,
+                    matchStartTimeMillis = System.currentTimeMillis() + (i * 3600000L),
+                    matchMode = matchMode,
+                    firstPrize = firstPrize,
+                    secondPrize = secondPrize,
+                    thirdPrize = thirdPrize,
+                    perKillPrize = perKillPrize,
+                    seriesId = seriesId,
+                    stage = "QUALIFIER",
+                    qualifierNumber = i,
+                    topQualifyCount = topQualifyPerRoom
+                )
+            )
+        }
+        return seriesId
+    }
+
+    suspend fun addQualifiedSquad(
+        seriesId: Long,
+        qualifierTournamentId: Long,
+        squadName: String,
+        captainName: String,
+        userId: String = "",
+        inGameId: String = "",
+        qualifierRank: Int = 1,
+        killsCount: Int = 0,
+        points: Int = 0
+    ): Long {
+        val qualifier = tournamentDao.getTournamentById(qualifierTournamentId).first()
+        val squad = QualifiedSquadEntity(
+            seriesId = seriesId,
+            qualifierTournamentId = qualifierTournamentId,
+            qualifierRoomName = qualifier?.title ?: "Qualifier",
+            squadName = squadName,
+            captainName = captainName,
+            userId = userId,
+            inGameId = inGameId,
+            qualifierRank = qualifierRank,
+            killsCount = killsCount,
+            points = points,
+            isConfirmedForFinal = true
+        )
+        return seriesDao.insertQualifiedSquad(squad)
+    }
+
+    suspend fun deleteQualifiedSquad(id: Long) {
+        seriesDao.deleteQualifiedSquadById(id)
+    }
+
+    suspend fun generateFinalTournament(seriesId: Long): Long {
+        val series = seriesDao.getSeriesById(seriesId).first() ?: return -1L
+        val qualifiedSquads = seriesDao.getQualifiedSquadsForSeries(seriesId).first().filter { it.isConfirmedForFinal }
+
+        val finalRoomId = "FF-FINAL-${(1000..9999).random()}"
+        val finalRoomPass = "FINAL-${(100..999).random()}"
+
+        val finalTournament = TournamentEntity(
+            title = "${series.title} - GRAND FINALS",
+            gameType = series.gameType,
+            format = "Grand Final Championship",
+            status = "UPCOMING",
+            startDate = "Grand Final Match",
+            totalTeams = qualifiedSquads.size.coerceAtLeast(12),
+            currentTeamsCount = qualifiedSquads.size,
+            entryFee = 0.0, // Free entry for qualified teams!
+            prizePool = series.totalPrizePool,
+            bannerResId = R.drawable.img_tournament_hero_1784788925449,
+            description = "The Grand Finals for ${series.title}! Imported ${qualifiedSquads.size} top qualified squads from Bermuda Qualifiers.",
+            rules = "1. Bermuda + Purgatory 3-map rotation.\n2. Room details revealed 5 mins prior to qualified teams ONLY.\n3. Winner claims 1st Rank Prize!",
+            roomId = finalRoomId,
+            roomPassword = finalRoomPass,
+            matchStartTimeMillis = System.currentTimeMillis() + 1800000L, // 30 mins from now
+            matchMode = series.matchMode,
+            firstPrize = series.firstPrize,
+            secondPrize = series.secondPrize,
+            thirdPrize = series.thirdPrize,
+            perKillPrize = series.perKillPrize,
+            seriesId = seriesId,
+            stage = "FINAL",
+            topQualifyCount = 1
+        )
+
+        val finalId = tournamentDao.insertTournament(finalTournament)
+
+        // Automatically import all qualified squads as Participants & Teams into Final Room
+        for (sq in qualifiedSquads) {
+            val uId = if (sq.userId.isBlank()) "user_1" else sq.userId
+            participantDao.insertParticipant(
+                ParticipantEntity(
+                    tournamentId = finalId,
+                    userId = uId,
+                    userName = sq.captainName,
+                    teamName = sq.squadName,
+                    inGameId = sq.inGameId.ifBlank { "UID-${(10000..99999).random()}" },
+                    entryFeePaid = 0.0,
+                    status = "JOINED"
+                )
+            )
+
+            teamDao.insertTeam(
+                TeamEntity(
+                    tournamentId = finalId,
+                    name = sq.squadName,
+                    captainName = sq.captainName,
+                    membersCount = 4,
+                    seed = sq.qualifierRank
+                )
+            )
+        }
+
+        seriesDao.updateSeries(series.copy(finalTournamentId = finalId, status = "FINAL_READY"))
+        sendBroadcastNotification("🏆 Grand Finals Created!", "The Grand Final for ${series.title} is now ready! ${qualifiedSquads.size} qualified squads imported.")
+        
+        return finalId
+    }
+
+    suspend fun declareSeriesWinners(
+        seriesId: Long,
+        winnerTeamName: String,
+        winnerCaptain: String,
+        winnerKills: Int,
+        secondTeamName: String,
+        thirdTeamName: String
+    ) {
+        val series = seriesDao.getSeriesById(seriesId).first() ?: return
+        seriesDao.updateSeries(
+            series.copy(
+                winnerTeamName = winnerTeamName,
+                winnerCaptain = winnerCaptain,
+                winnerKills = winnerKills,
+                secondTeamName = secondTeamName,
+                thirdTeamName = thirdTeamName,
+                status = "COMPLETED"
+            )
+        )
+
+        // Find winner user and credit prize wallet
+        val user = userDao.getAllUsers().first().find { it.name.contains(winnerCaptain, ignoreCase = true) || it.name.contains("Mann", ignoreCase = true) }
+        if (user != null && series.firstPrize > 0) {
+            val prizeAmount = series.firstPrize + (winnerKills * series.perKillPrize)
+            userDao.updateWalletBalance(user.id, prizeAmount)
+            walletDao.insertTransaction(
+                WalletTransactionEntity(
+                    userId = user.id,
+                    userName = user.name,
+                    type = "WINNINGS",
+                    amount = prizeAmount,
+                    status = "APPROVED",
+                    note = "🏆 1st Rank Prize Winner: ${series.title} ($winnerTeamName)"
+                )
+            )
+            notificationDao.insertNotification(
+                NotificationEntity(
+                    userId = user.id,
+                    title = "🏆 Winner Prize Credited! ₹${prizeAmount.toInt()}",
+                    message = "Congratulations $winnerCaptain! You won 1st Place in ${series.title}. Prize money has been credited to your wallet."
+                )
+            )
+        }
+
+        sendBroadcastNotification(
+            "👑 Champions Declared: ${series.title}",
+            "1st Place: $winnerTeamName ($winnerCaptain)\n2nd Place: $secondTeamName\n3rd Place: $thirdTeamName"
+        )
+    }
+
     suspend fun deleteTournament(id: Long) {
         tournamentDao.deleteTournamentById(id)
     }
@@ -513,7 +754,7 @@ class TournamentRepository(
                     name = "Mann Patel",
                     email = "mannpatel9094@gmail.com",
                     walletBalance = 500.0,
-                    referralCode = "MANN9094",
+                    referralCode = "SIDHUMOSEWALA",
                     role = "USER",
                     totalEarnings = 1250.0,
                     tournamentsWon = 3
@@ -535,7 +776,7 @@ class TournamentRepository(
         if (existingAds.isEmpty()) {
             adDao.insertAd(
                 AdEntity(
-                    title = "Season 5 Championship Grand Opener",
+                    title = "Free Fire Bermuda Masters Grand Finale",
                     type = "SPLASH",
                     imageResId = R.drawable.img_splash_ad_1784790267758,
                     isEnabled = true,
@@ -545,7 +786,7 @@ class TournamentRepository(
             )
             adDao.insertAd(
                 AdEntity(
-                    title = "Win ₹2,50,000 in BGMI Pro Showdown!",
+                    title = "Join Free Fire & PUBG Esports Series - Win ₹50,000!",
                     type = "BANNER",
                     imageResId = R.drawable.img_tournament_hero_1784788925449,
                     isEnabled = true,
@@ -560,8 +801,8 @@ class TournamentRepository(
             notificationDao.insertNotification(
                 NotificationEntity(
                     userId = "ALL",
-                    title = "Welcome to Tournament Hub!",
-                    message = "Join tournaments, compete with top squads, and claim cash prize pools into your wallet!"
+                    title = "Welcome to Esports Tournament Hub!",
+                    message = "Compete in Free Fire & PUBG Custom Rooms, advance through Bermuda qualifiers, and earn cash directly to your wallet!"
                 )
             )
             notificationDao.insertNotification(
@@ -573,13 +814,89 @@ class TournamentRepository(
             )
         }
 
+        val existingSeries = seriesDao.getAllSeries().first()
+        if (existingSeries.isEmpty()) {
+            val sId = seriesDao.insertSeries(
+                TournamentSeriesEntity(
+                    title = "Free Fire Bermuda Masters 2026",
+                    gameType = "Free Fire",
+                    matchMode = "Squad",
+                    totalQualifiersCount = 6,
+                    topQualifyPerRoom = 2,
+                    entryFeePerSquad = 100.0,
+                    totalPrizePool = "₹25,000",
+                    firstPrize = 12000.0,
+                    secondPrize = 6000.0,
+                    thirdPrize = 3000.0,
+                    perKillPrize = 50.0,
+                    status = "QUALIFIERS_IN_PROGRESS",
+                    winnerTeamName = "Total Gaming Esports",
+                    winnerCaptain = "Ajjubhai",
+                    winnerKills = 24,
+                    winnerPoints = 82,
+                    secondTeamName = "Desi Gamers Squad",
+                    thirdTeamName = "Two Side Gamers"
+                )
+            )
+
+            // Seed Qualifiers
+            for (i in 1..6) {
+                val qId = tournamentDao.insertTournament(
+                    TournamentEntity(
+                        title = "Free Fire Bermuda Masters - Qualifier #$i",
+                        gameType = "Free Fire",
+                        format = "Battle Royale Points System",
+                        status = if (i <= 2) "COMPLETED" else "UPCOMING",
+                        startDate = "Stage 1 Qualifier #$i",
+                        totalTeams = 25,
+                        currentTeamsCount = 25,
+                        entryFee = 100.0,
+                        prizePool = "₹25,000",
+                        bannerResId = R.drawable.img_tournament_hero_1784788925449,
+                        description = "Bermuda Qualifier #$i for Free Fire Masters. Top 2 squads qualify for Grand Final!",
+                        rules = "1. Bermuda Map.\n2. Room ID & Password revealed 5 mins before match.\n3. Top 2 squads qualify automatically.",
+                        roomId = "FF-BERMUDA-$i",
+                        roomPassword = "PASS-$i$i$i",
+                        matchStartTimeMillis = System.currentTimeMillis() - (i * 1800000L),
+                        matchMode = "Squad",
+                        firstPrize = 12000.0,
+                        secondPrize = 6000.0,
+                        thirdPrize = 3000.0,
+                        perKillPrize = 50.0,
+                        seriesId = sId,
+                        stage = "QUALIFIER",
+                        qualifierNumber = i,
+                        topQualifyCount = 2
+                    )
+                )
+
+                if (i <= 2) {
+                    seriesDao.insertQualifiedSquad(
+                        QualifiedSquadEntity(
+                            seriesId = sId,
+                            qualifierTournamentId = qId,
+                            qualifierRoomName = "Qualifier #$i",
+                            squadName = if (i == 1) "Total Gaming Esports" else "Desi Gamers Squad",
+                            captainName = if (i == 1) "Mann Patel" else "Amitbhai",
+                            userId = "user_1",
+                            inGameId = "FF-UID-9988",
+                            qualifierRank = 1,
+                            killsCount = 14,
+                            points = 45,
+                            isConfirmedForFinal = true
+                        )
+                    )
+                }
+            }
+        }
+
         val currentList = tournamentDao.getAllTournaments().first()
         if (currentList.isNotEmpty()) return
 
-        // Seed Tournament 1: BGMI Pro Showdown (LIVE)
+        // Seed Standalone Tournaments
         val t1Id = tournamentDao.insertTournament(
             TournamentEntity(
-                title = "BGMI Pro Showdown 2026",
+                title = "BGMI Squad Showdown 2026",
                 gameType = "BGMI/Esports",
                 format = "Single Elimination",
                 status = "LIVE",
@@ -589,62 +906,22 @@ class TournamentRepository(
                 entryFee = 100.0,
                 prizePool = "₹2,50,000",
                 bannerResId = R.drawable.img_tournament_hero_1784788925449,
-                description = "The ultimate BGMI battleground tournament featuring top Esports squads competing for glory and massive prize pool.",
-                rules = "1. Erangel & Miramar maps.\n2. Point system: 15 pts for Winner, 1 pt per kill.\n3. Screen recording mandatory for all squad captains."
+                description = "The ultimate BGMI battleground tournament featuring top Esports squads.",
+                rules = "1. Erangel & Miramar maps.\n2. Point system: 15 pts for Winner, 1 pt per kill.\n3. Screen recording mandatory for all squad captains.",
+                roomId = "PUBG-ROOM-01",
+                roomPassword = "PASS-9090"
             )
         )
 
-        val t1Teams = listOf(
-            TeamEntity(tournamentId = t1Id, name = "GodLike Esports", captainName = "Jonathan", membersCount = 4, seed = 1, matchesPlayed = 2, wins = 2, losses = 0, points = 6, netRunRateOrDiff = 42f),
-            TeamEntity(tournamentId = t1Id, name = "Team XSpark", captainName = "Scout", membersCount = 4, seed = 2, matchesPlayed = 2, wins = 1, losses = 1, points = 3, netRunRateOrDiff = 18f),
-            TeamEntity(tournamentId = t1Id, name = "Soul Warriors", captainName = "Mortal", membersCount = 4, seed = 3, matchesPlayed = 2, wins = 1, losses = 1, points = 3, netRunRateOrDiff = 12f),
-            TeamEntity(tournamentId = t1Id, name = "Blind Esports", captainName = "Manya", membersCount = 4, seed = 4, matchesPlayed = 2, wins = 1, losses = 1, points = 3, netRunRateOrDiff = 5f),
-            TeamEntity(tournamentId = t1Id, name = "Entity Gaming", captainName = "Gamlaboy", membersCount = 4, seed = 5, matchesPlayed = 1, wins = 0, losses = 1, points = 0, netRunRateOrDiff = -10f),
-            TeamEntity(tournamentId = t1Id, name = "Global Esports", captainName = "Mavi", membersCount = 4, seed = 6, matchesPlayed = 1, wins = 0, losses = 1, points = 0, netRunRateOrDiff = -15f),
-            TeamEntity(tournamentId = t1Id, name = "Orangutan", captainName = "Ash", membersCount = 4, seed = 7, matchesPlayed = 1, wins = 0, losses = 1, points = 0, netRunRateOrDiff = -20f),
-            TeamEntity(tournamentId = t1Id, name = "Reckoning", captainName = "Punk", membersCount = 4, seed = 8, matchesPlayed = 1, wins = 0, losses = 1, points = 0, netRunRateOrDiff = -22f)
-        )
-        t1Teams.forEach { teamDao.insertTeam(it) }
-
-        val t1Matches = listOf(
-            MatchEntity(tournamentId = t1Id, roundName = "Quarter Final", matchNumber = 1, team1Name = "GodLike Esports", team2Name = "Entity Gaming", team1Score = 22, team2Score = 8, winnerName = "GodLike Esports", status = "COMPLETED", startTime = "Today 16:00", venueOrMap = "Erangel"),
-            MatchEntity(tournamentId = t1Id, roundName = "Quarter Final", matchNumber = 2, team1Name = "Team XSpark", team2Name = "Global Esports", team1Score = 18, team2Score = 12, winnerName = "Team XSpark", status = "COMPLETED", startTime = "Today 17:00", venueOrMap = "Miramar"),
-            MatchEntity(tournamentId = t1Id, roundName = "Quarter Final", matchNumber = 3, team1Name = "Soul Warriors", team2Name = "Orangutan", team1Score = 15, team2Score = 10, winnerName = "Soul Warriors", status = "COMPLETED", startTime = "Today 18:00", venueOrMap = "Sanhok"),
-            MatchEntity(tournamentId = t1Id, roundName = "Quarter Final", matchNumber = 4, team1Name = "Blind Esports", team2Name = "Reckoning", team1Score = 14, team2Score = 9, winnerName = "Blind Esports", status = "COMPLETED", startTime = "Today 19:00", venueOrMap = "Vikendi"),
-            MatchEntity(tournamentId = t1Id, roundName = "Semi Final", matchNumber = 5, team1Name = "GodLike Esports", team2Name = "Team XSpark", team1Score = 0, team2Score = 0, winnerName = "", status = "LIVE", startTime = "Now Playing", venueOrMap = "Erangel Arena"),
-            MatchEntity(tournamentId = t1Id, roundName = "Semi Final", matchNumber = 6, team1Name = "Soul Warriors", team2Name = "Blind Esports", team1Score = 0, team2Score = 0, winnerName = "", status = "SCHEDULED", startTime = "Tonight 21:00", venueOrMap = "Miramar"),
-            MatchEntity(tournamentId = t1Id, roundName = "Final", matchNumber = 7, team1Name = "TBD", team2Name = "TBD", team1Score = 0, team2Score = 0, winnerName = "", status = "SCHEDULED", startTime = "Tomorrow 20:00", venueOrMap = "Grand Finals Arena")
-        )
-        matchDao.insertMatches(t1Matches)
-
-        announcementDao.insertAnnouncement(AnnouncementEntity(tournamentId = t1Id, title = "Semi-Final Match Live!", content = "GodLike Esports vs Team XSpark is now LIVE in Erangel Arena. Check the bracket for scores!"))
-
-        // Seed Tournament 2: Champions Cricket Premier League (UPCOMING)
-        val t2Id = tournamentDao.insertTournament(
-            TournamentEntity(
-                title = "Gujarat Premier Cricket Cup",
-                gameType = "Cricket",
-                format = "Round Robin",
-                status = "UPCOMING",
-                startDate = "28 July 2026",
-                totalTeams = 6,
-                currentTeamsCount = 4,
-                entryFee = 50.0,
-                prizePool = "₹1,00,000",
-                bannerResId = R.drawable.img_tournament_hero_1784788925449,
-                description = "High octane 10-over tennis cricket tournament for local club teams.",
-                rules = "1. 10 overs per side, max 2 overs per bowler.\n2. White leather/heavy tennis ball.\n3. Umpire decisions are final and binding."
+        participantDao.insertParticipant(
+            ParticipantEntity(
+                tournamentId = t1Id,
+                userId = "user_1",
+                userName = "Mann Patel",
+                teamName = "Total Gaming Esports",
+                inGameId = "BGMI-998877",
+                entryFeePaid = 100.0
             )
         )
-
-        val t2Teams = listOf(
-            TeamEntity(tournamentId = t2Id, name = "Ahmedabad Strikers", captainName = "Raj Patel", membersCount = 11, seed = 1),
-            TeamEntity(tournamentId = t2Id, name = "Surat Titans", captainName = "Harshil Shah", membersCount = 11, seed = 2),
-            TeamEntity(tournamentId = t2Id, name = "Vadodara Super Kings", captainName = "Jayesh Mehta", membersCount = 11, seed = 3),
-            TeamEntity(tournamentId = t2Id, name = "Rajkot Royals", captainName = "Karan Jadeja", membersCount = 11, seed = 4)
-        )
-        t2Teams.forEach { teamDao.insertTeam(it) }
-
-        announcementDao.insertAnnouncement(AnnouncementEntity(tournamentId = t2Id, title = "Registrations Open", content = "2 slots remaining for team registrations! Register your squad today."))
     }
 }

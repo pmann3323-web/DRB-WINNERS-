@@ -69,7 +69,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.db.entity.AdEntity
+import com.example.data.db.entity.QualifiedSquadEntity
 import com.example.data.db.entity.TournamentEntity
+import com.example.data.db.entity.TournamentSeriesEntity
 import com.example.data.db.entity.UserEntity
 import com.example.data.db.entity.WalletTransactionEntity
 import com.example.ui.theme.EmeraldGreen
@@ -85,14 +87,17 @@ fun AdminPanelScreen(
 ) {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabTitles = listOf("Tournaments", "Wallet Verification", "User Management", "Ad Management", "Notifications")
+    val tabTitles = listOf("Tournaments", "Esports Series Hub", "Wallet Verification", "User Management", "Ad Management", "Notifications")
 
     val tournaments by viewModel.allTournaments.collectAsStateWithLifecycle()
+    val allSeries by viewModel.allSeries.collectAsStateWithLifecycle()
+    val allQualifiedSquads by viewModel.allQualifiedSquads.collectAsStateWithLifecycle()
     val pendingTxns by viewModel.pendingTransactions.collectAsStateWithLifecycle()
     val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
     val allAds by viewModel.allAds.collectAsStateWithLifecycle()
 
     var showCreateTournamentDialog by remember { mutableStateOf(false) }
+    var showCreateSeriesDialog by remember { mutableStateOf(false) }
     var showBroadcastDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -183,20 +188,27 @@ fun AdminPanelScreen(
                         viewModel = viewModel,
                         onCreateNew = { showCreateTournamentDialog = true }
                     )
-                    1 -> AdminWalletTab(
+                    1 -> AdminSeriesTab(
+                        allSeries = allSeries,
+                        allQualifiedSquads = allQualifiedSquads,
+                        tournaments = tournaments,
+                        viewModel = viewModel,
+                        onCreateSeries = { showCreateSeriesDialog = true }
+                    )
+                    2 -> AdminWalletTab(
                         pendingTransactions = pendingTxns,
                         allUsers = allUsers,
                         viewModel = viewModel
                     )
-                    2 -> AdminUsersTab(
+                    3 -> AdminUsersTab(
                         allUsers = allUsers,
                         viewModel = viewModel
                     )
-                    3 -> AdminAdsTab(
+                    4 -> AdminAdsTab(
                         allAds = allAds,
                         viewModel = viewModel
                     )
-                    4 -> AdminNotificationsTab(
+                    5 -> AdminNotificationsTab(
                         onSendBroadcast = { showBroadcastDialog = true }
                     )
                 }
@@ -212,6 +224,18 @@ fun AdminPanelScreen(
             onTournamentCreated = {
                 Toast.makeText(context, "Tournament Created Successfully!", Toast.LENGTH_SHORT).show()
                 showCreateTournamentDialog = false
+            }
+        )
+    }
+
+    // CREATE SERIES DIALOG
+    if (showCreateSeriesDialog) {
+        CreateSeriesDialog(
+            viewModel = viewModel,
+            onDismiss = { showCreateSeriesDialog = false },
+            onSeriesCreated = {
+                Toast.makeText(context, "Tournament Series & Qualifiers Created!", Toast.LENGTH_LONG).show()
+                showCreateSeriesDialog = false
             }
         )
     }
@@ -943,4 +967,609 @@ fun AdminNotificationsTab(
             Text("Send New Broadcast Notification", fontWeight = FontWeight.Bold)
         }
     }
+}
+
+@Composable
+fun AdminSeriesTab(
+    allSeries: List<TournamentSeriesEntity>,
+    allQualifiedSquads: List<QualifiedSquadEntity>,
+    tournaments: List<TournamentEntity>,
+    viewModel: TournamentViewModel,
+    onCreateSeries: () -> Unit
+) {
+    val context = LocalContext.current
+    val squadDialogSeriesIdState = remember { mutableStateOf<Long?>(null) }
+    val declareWinnerSeriesState = remember { mutableStateOf<TournamentSeriesEntity?>(null) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Button(
+            onClick = onCreateSeries,
+            colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+                .testTag("admin_create_series_button")
+        ) {
+            Icon(imageVector = Icons.Default.SportsEsports, contentDescription = null)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Create Multi-Stage Series (Qualifiers -> Final)", fontWeight = FontWeight.Bold)
+        }
+
+        if (allSeries.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "No Tournament Series created yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(allSeries, key = { it.id }) { series ->
+                    val seriesSquads = allQualifiedSquads.filter { it.seriesId == series.id }
+                    val seriesTournaments = tournaments.filter { it.seriesId == series.id }
+                    val qualifierRooms = seriesTournaments.filter { it.stage == "QUALIFIER" }
+                    val finalRoom = seriesTournaments.find { it.stage == "FINAL" }
+
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(GoldAccent, RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = series.gameType.uppercase(),
+                                        color = Color.Black,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = series.title,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 16.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            when (series.status) {
+                                                "COMPLETED" -> EmeraldGreen
+                                                "FINAL_READY" -> GoldAccent
+                                                else -> Color(0xFF38BDF8)
+                                            },
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = series.status,
+                                        color = Color.Black,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "🏆 Prize Pool: ${series.totalPrizePool} · Qualifiers: ${qualifierRooms.size} Rooms · Top ${series.topQualifyPerRoom} Qualify/Room",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Live Stats Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                StatChip(label = "Qualifiers", value = "${qualifierRooms.size}", color = Color(0xFF38BDF8), modifier = Modifier.weight(1f))
+                                StatChip(label = "Qualified Squads", value = "${seriesSquads.size}", color = EmeraldGreen, modifier = Modifier.weight(1f))
+                                StatChip(label = "Final Match", value = if (finalRoom != null) "CREATED" else "PENDING", color = if (finalRoom != null) GoldAccent else LiveRed, modifier = Modifier.weight(1f))
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Action Buttons
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { squadDialogSeriesIdState.value = series.id },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = GoldAccent),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("+ Add Squad", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                if (finalRoom == null) {
+                                    Button(
+                                        onClick = {
+                                            viewModel.generateFinalTournament(series.id) {
+                                                Toast.makeText(context, "⚡ Final Room Generated with All Qualified Squads!", Toast.LENGTH_LONG).show()
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black),
+                                        modifier = Modifier.weight(1.3f)
+                                    ) {
+                                        Text("⚡ Generate Final Room", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                } else if (series.status != "COMPLETED") {
+                                    Button(
+                                        onClick = { declareWinnerSeriesState.value = series },
+                                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White),
+                                        modifier = Modifier.weight(1.3f)
+                                    ) {
+                                        Text("🏆 Declare Winners", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+
+                            if (seriesSquads.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "Qualified Squads List (${seriesSquads.size}):",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = GoldAccent
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                seriesSquads.forEach { squad ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "• ${squad.squadName} (Capt: ${squad.captainName}) - Rank ${squad.qualifierRank}",
+                                            fontSize = 11.sp,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        IconButton(
+                                            onClick = { viewModel.deleteQualifiedSquad(squad.id) },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Remove", tint = LiveRed, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    val activeSquadDialogId = squadDialogSeriesIdState.value
+    if (activeSquadDialogId != null) {
+        val seriesQualifiers = tournaments.filter { it.seriesId == activeSquadDialogId && it.stage == "QUALIFIER" }
+        AddQualifiedSquadDialog(
+            seriesId = activeSquadDialogId,
+            qualifierTournaments = seriesQualifiers,
+            viewModel = viewModel,
+            onDismiss = { squadDialogSeriesIdState.value = null }
+        )
+    }
+
+    val activeDeclareSeries = declareWinnerSeriesState.value
+    if (activeDeclareSeries != null) {
+        val sSquads = allQualifiedSquads.filter { it.seriesId == activeDeclareSeries.id }
+        DeclareSeriesWinnersDialog(
+            series = activeDeclareSeries,
+            qualifiedSquads = sSquads,
+            viewModel = viewModel,
+            onDismiss = { declareWinnerSeriesState.value = null }
+        )
+    }
+}
+
+@Composable
+fun StatChip(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.padding(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(text = label, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(text = value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color)
+        }
+    }
+}
+
+@Composable
+fun CreateSeriesDialog(
+    viewModel: TournamentViewModel,
+    onDismiss: () -> Unit,
+    onSeriesCreated: () -> Unit
+) {
+    var title by remember { mutableStateOf("Free Fire Bermuda Champions League 2026") }
+    var gameType by remember { mutableStateOf("Free Fire") }
+    var qualifiersCountText by remember { mutableStateOf("6") }
+    var topQualifyText by remember { mutableStateOf("2") }
+    var entryFeeText by remember { mutableStateOf("100") }
+    var prizePool by remember { mutableStateOf("₹20,000") }
+    var firstPrizeText by remember { mutableStateOf("10000") }
+    var secondPrizeText by remember { mutableStateOf("5000") }
+    var thirdPrizeText by remember { mutableStateOf("2500") }
+    var perKillText by remember { mutableStateOf("50") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create Esports Tournament Series", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+        text = {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Series Title") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { gameType = "Free Fire" },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (gameType == "Free Fire") GoldAccent else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (gameType == "Free Fire") Color.Black else MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Free Fire", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = { gameType = "BGMI / PUBG" },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (gameType == "BGMI / PUBG") GoldAccent else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (gameType == "BGMI / PUBG") Color.Black else MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("BGMI / PUBG", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = qualifiersCountText,
+                            onValueChange = { qualifiersCountText = it },
+                            label = { Text("Qualifier Rooms (e.g. 6)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        OutlinedTextField(
+                            value = topQualifyText,
+                            onValueChange = { topQualifyText = it },
+                            label = { Text("Top Qualify / Room") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = entryFeeText,
+                            onValueChange = { entryFeeText = it },
+                            label = { Text("Entry Fee (₹)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        OutlinedTextField(
+                            value = prizePool,
+                            onValueChange = { prizePool = it },
+                            label = { Text("Prize Pool String") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = firstPrizeText,
+                            onValueChange = { firstPrizeText = it },
+                            label = { Text("1st Place (₹)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = secondPrizeText,
+                            onValueChange = { secondPrizeText = it },
+                            label = { Text("2nd Place (₹)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = thirdPrizeText,
+                            onValueChange = { thirdPrizeText = it },
+                            label = { Text("3rd Place (₹)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = perKillText,
+                            onValueChange = { perKillText = it },
+                            label = { Text("Per Kill (₹)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (title.isBlank()) return@Button
+                    val qCount = qualifiersCountText.toIntOrNull() ?: 6
+                    val topQ = topQualifyText.toIntOrNull() ?: 2
+                    val entryFee = entryFeeText.toDoubleOrNull() ?: 100.0
+                    val firstP = firstPrizeText.toDoubleOrNull() ?: 10000.0
+                    val secondP = secondPrizeText.toDoubleOrNull() ?: 5000.0
+                    val thirdP = thirdPrizeText.toDoubleOrNull() ?: 2500.0
+                    val killP = perKillText.toDoubleOrNull() ?: 50.0
+
+                    viewModel.createTournamentSeries(
+                        title = title,
+                        gameType = gameType,
+                        matchMode = "Squad",
+                        qualifiersCount = qCount,
+                        topQualifyPerRoom = topQ,
+                        entryFeePerSquad = entryFee,
+                        prizePool = prizePool,
+                        firstPrize = firstP,
+                        secondPrize = secondP,
+                        thirdPrize = thirdP,
+                        perKillPrize = killP,
+                        onCreated = { onSeriesCreated() }
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black)
+            ) {
+                Text("Create Series & All Qualifiers", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun AddQualifiedSquadDialog(
+    seriesId: Long,
+    qualifierTournaments: List<TournamentEntity>,
+    viewModel: TournamentViewModel,
+    onDismiss: () -> Unit
+) {
+    var squadName by remember { mutableStateOf("") }
+    var captainName by remember { mutableStateOf("") }
+    var selectedQualifierId by remember { mutableStateOf(qualifierTournaments.firstOrNull()?.id ?: 0L) }
+    var rankText by remember { mutableStateOf("1") }
+    var killsText by remember { mutableStateOf("12") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Qualified Squad to Finalists", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = squadName,
+                    onValueChange = { squadName = it },
+                    label = { Text("Squad / Team Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = captainName,
+                    onValueChange = { captainName = it },
+                    label = { Text("Captain Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = rankText,
+                        onValueChange = { rankText = it },
+                        label = { Text("Rank (e.g. 1)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = killsText,
+                        onValueChange = { killsText = it },
+                        label = { Text("Kills") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (squadName.isBlank()) return@Button
+                    viewModel.addQualifiedSquad(
+                        seriesId = seriesId,
+                        qualifierTournamentId = selectedQualifierId,
+                        squadName = squadName,
+                        captainName = captainName,
+                        qualifierRank = rankText.toIntOrNull() ?: 1,
+                        killsCount = killsText.toIntOrNull() ?: 0,
+                        onAdded = onDismiss
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black)
+            ) {
+                Text("Add Squad", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun DeclareSeriesWinnersDialog(
+    series: TournamentSeriesEntity,
+    qualifiedSquads: List<QualifiedSquadEntity>,
+    viewModel: TournamentViewModel,
+    onDismiss: () -> Unit
+) {
+    val squadNames = qualifiedSquads.map { it.squadName }.ifEmpty { listOf("ALPHA ESPORTS", "BRAVO KINGS", "CHARLIE WARRIORS") }
+    var winner1 by remember { mutableStateOf(squadNames.getOrElse(0) { "ALPHA ESPORTS" }) }
+    var winner2 by remember { mutableStateOf(squadNames.getOrElse(1) { "BRAVO KINGS" }) }
+    var winner3 by remember { mutableStateOf(squadNames.getOrElse(2) { "CHARLIE WARRIORS" }) }
+    var winnerCaptain by remember { mutableStateOf("Captain Pro") }
+    var winnerKillsText by remember { mutableStateOf("18") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("🏆 Declare Grand Final Winners", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(text = "Series: ${series.title}", fontSize = 12.sp, color = GoldAccent, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+
+                OutlinedTextField(
+                    value = winner1,
+                    onValueChange = { winner1 = it },
+                    label = { Text("🥇 1st Place Squad (Prize: ₹${series.firstPrize.toInt()})") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = winnerCaptain,
+                    onValueChange = { winnerCaptain = it },
+                    label = { Text("1st Place Captain Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = winnerKillsText,
+                    onValueChange = { winnerKillsText = it },
+                    label = { Text("1st Place Total Kills") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = winner2,
+                    onValueChange = { winner2 = it },
+                    label = { Text("🥈 2nd Place Squad (Prize: ₹${series.secondPrize.toInt()})") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = winner3,
+                    onValueChange = { winner3 = it },
+                    label = { Text("🥉 3rd Place Squad (Prize: ₹${series.thirdPrize.toInt()})") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val kills = winnerKillsText.toIntOrNull() ?: 0
+                    viewModel.declareSeriesWinners(
+                        seriesId = series.id,
+                        winnerTeamName = winner1,
+                        winnerCaptain = winnerCaptain,
+                        winnerKills = kills,
+                        secondTeamName = winner2,
+                        thirdTeamName = winner3,
+                        onDeclared = onDismiss
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White)
+            ) {
+                Text("Declare Winners & Pay Wallet", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

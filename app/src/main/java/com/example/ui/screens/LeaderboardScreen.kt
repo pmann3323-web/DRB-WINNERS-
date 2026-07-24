@@ -101,33 +101,39 @@ fun LeaderboardScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "REFER & EARN ₹50",
+                            text = "REFER & EARN ₹50 OFFER",
                             color = GoldAccent,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 1.sp
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Get ₹50 cash bonus for every friend you invite!",
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 11.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = "Your Referral Code",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 12.sp
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 11.sp
                         )
                         Text(
-                            text = user?.referralCode ?: "MANN9094",
+                            text = if (user?.referralCode.isNullOrEmpty() || user?.referralCode == "MANN9094") "SIDHUMOSEWALA" else user!!.referralCode,
                             color = Color.White,
-                            fontSize = 22.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
 
                     Button(
                         onClick = {
-                            val code = user?.referralCode ?: "MANN9094"
+                            val code = if (user?.referralCode.isNullOrEmpty() || user?.referralCode == "MANN9094") "SIDHUMOSEWALA" else user!!.referralCode
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             val clip = ClipData.newPlainText("Referral Code", code)
                             clipboard.setPrimaryClip(clip)
-                            Toast.makeText(context, "Referral Code Copied: $code", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Referral Code Copied: $code (Earn ₹50 Bonus!)", Toast.LENGTH_SHORT).show()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black),
                         shape = RoundedCornerShape(12.dp),
