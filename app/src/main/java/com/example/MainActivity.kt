@@ -13,12 +13,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.TournamentDetailScreen
 import com.example.ui.theme.TournamentHubTheme
 import com.example.ui.viewmodel.TournamentViewModel
 
 sealed class Screen {
+    object Auth : Screen()
     object Home : Screen()
     data class Detail(val tournamentId: Long) : Screen()
     object AdminPanel : Screen()
@@ -38,6 +40,14 @@ class MainActivity : ComponentActivity() {
                     var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
 
                     when (val screen = currentScreen) {
+                        is Screen.Auth -> {
+                            AuthScreen(
+                                viewModel = viewModel,
+                                onAuthSuccess = {
+                                    currentScreen = Screen.Home
+                                }
+                            )
+                        }
                         is Screen.Home -> {
                             HomeScreen(
                                 viewModel = viewModel,
@@ -46,6 +56,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onOpenAdminPanel = {
                                     currentScreen = Screen.AdminPanel
+                                },
+                                onOpenAuth = {
+                                    currentScreen = Screen.Auth
                                 }
                             )
                         }

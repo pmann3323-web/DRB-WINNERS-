@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.db.TournamentDatabase
 import com.example.data.db.entity.AdEntity
 import com.example.data.db.entity.AnnouncementEntity
+import com.example.data.db.entity.ChatMessageEntity
 import com.example.data.db.entity.MatchEntity
 import com.example.data.db.entity.NotificationEntity
 import com.example.data.db.entity.ParticipantEntity
@@ -51,6 +52,9 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
     val allUsers: StateFlow<List<UserEntity>>
     val joinedTournaments: StateFlow<List<ParticipantEntity>>
     val userNotifications: StateFlow<List<NotificationEntity>>
+    val allChatMessages: StateFlow<List<ChatMessageEntity>>
+    val userChatMessages: StateFlow<List<ChatMessageEntity>>
+    val depositUpiId: StateFlow<String>
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val selectedTournament: StateFlow<TournamentEntity?>
@@ -79,7 +83,9 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
             db.adDao(),
             db.notificationDao(),
             db.participantDao(),
-            db.tournamentSeriesDao()
+            db.tournamentSeriesDao(),
+            db.chatMessageDao(),
+            db.adminSettingDao()
         )
 
         allSeries = repository.allSeries.stateIn(
@@ -164,6 +170,26 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
+        )
+
+        allChatMessages = repository.allChatMessages.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+        userChatMessages = currentUserId.flatMapLatest { id ->
+            repository.getChatMessagesForUser(id)
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+        depositUpiId = repository.depositUpiId.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = "mannpatel9094@fam"
         )
 
         allTournaments = combine(
@@ -314,10 +340,58 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun updateUserProfile(name: String, email: String, profilePic: String) {
+    fun updateUserProfile(name: String, email: String, profilePic: String, phoneNumber: String = "") {
         viewModelScope.launch {
-            repository.updateUserProfile(currentUserId.value, name, email, profilePic)
+            repository.updateUserProfile(currentUserId.value, name, email, profilePic, phoneNumber)
         }
+    }
+
+    fun loginWithPhone(phoneNumber: String, name: String = "Player", onDone: () -> Unit) {
+        viewModelScope.launch {
+            val cleanPhone = phoneNumber.trim()
+            val userId = "user_phone_${cleanPhone.filter { it.isDigit() }}"
+            repository.loginOrRegisterUser(
+                userId = userId,
+                name = if (name.isNotEmpty()) name else "Pro Gamer",
+                email = "user_${cleanPhone.takeLast(4)}@tournamenthub.com",
+                phoneNumber = cleanPhone
+            )
+            currentUserId.value = userId
+            onDone()
+        }
+    }
+
+    fun loginWithGoogle(accountName: String, accountEmail: String, photoUrl: String = "", onDone: () -> Unit) {
+        viewModelScope.launch {
+            val userId = "user_google_${accountEmail.replace("@", "_").replace(".", "_")}"
+            repository.loginOrRegisterUser(
+                userId = userId,
+                name = accountName,
+                email = accountEmail,
+                phoneNumber = "+91 9876543210"
+            )
+            currentUserId.value = userId
+            onDone()
+        }
+    }
+
+    fun loginWithEmail(email: String, name: String, onDone: () -> Unit) {
+        viewModelScope.launch {
+            val cleanEmail = email.trim()
+            val userId = "user_email_${cleanEmail.replace("@", "_").replace(".", "_")}"
+            repository.loginOrRegisterUser(
+                userId = userId,
+                name = name.ifEmpty { cleanEmail.substringBefore("@") },
+                email = cleanEmail,
+                phoneNumber = "+91 9876543210"
+            )
+            currentUserId.value = userId
+            onDone()
+        }
+    }
+
+    fun logoutUser() {
+        currentUserId.value = "user_guest"
     }
 
     fun createTournament(
@@ -523,6 +597,55 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
             if (selectedTournamentId.value == id) {
                 selectedTournamentId.value = null
             }
+        }
+    }
+
+    fun sendUserChatMessage(messageText: String) {
+        if (messageText.isBlank()) return
+        viewModelScope.launch {
+            val user = currentUser.value
+            val userId = currentUserId.value
+            val userName = user?.name ?: "Player"
+            repository.sendChatMessage(
+                userId = userId,
+                senderId = userId,
+                senderName = userName,
+                receiverId = "admin",
+                message = messageText.trim(),
+                isAdmin = false
+            )
+        }
+    }
+
+    fun sendAdminChatMessage(targetUserId: String, messageText: String) {
+        if (messageText.isBlank()) return
+        viewModelScope.launch {
+            repository.sendChatMessage(
+                userId = targetUserId,
+                senderId = "admin",
+                senderName = "Tournament Admin",
+                receiverId = targetUserId,
+                message = messageText.trim(),
+                isAdmin = true
+            )
+        }
+    }
+
+    fun markChatAsRead(userId: String, isAdminPerspective: Boolean) {
+        viewModelScope.launch {
+            repository.markChatAsReadForUser(userId, isAdminPerspective)
+        }
+    }
+
+    fun updateDepositUpiId(newUpiId: String) {
+        viewModelScope.launch {
+            repository.updateDepositUpiId(newUpiId)
+        }
+    }
+
+    fun updateRoomCredentials(tournamentId: Long, roomId: String, roomPassword: String) {
+        viewModelScope.launch {
+            repository.updateTournamentRoomCredentials(tournamentId, roomId, roomPassword)
         }
     }
 }

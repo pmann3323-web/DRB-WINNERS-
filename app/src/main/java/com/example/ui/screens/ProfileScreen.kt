@@ -64,7 +64,8 @@ import java.util.Locale
 @Composable
 fun ProfileScreen(
     viewModel: TournamentViewModel,
-    onOpenAdminPanel: () -> Unit
+    onOpenAdminPanel: () -> Unit,
+    onOpenAuth: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val user by viewModel.currentUser.collectAsStateWithLifecycle()
@@ -109,16 +110,24 @@ fun ProfileScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = user?.name ?: "Mann Patel",
+                            text = user?.name ?: "Gamer",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = user?.email ?: "mannpatel9094@gmail.com",
-                            fontSize = 13.sp,
+                            text = user?.email ?: "user@tournamenthub.com",
+                            fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (user?.phoneNumber?.isNotEmpty() == true) {
+                            Text(
+                                text = "📱 ${user?.phoneNumber}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = GoldAccent
+                            )
+                        }
                         Spacer(modifier = Modifier.height(4.dp))
                         Box(
                             modifier = Modifier
@@ -214,7 +223,34 @@ fun ProfileScreen(
             )
         }
 
+        // Account Auth / Switch Account Button
+        Button(
+            onClick = onOpenAuth,
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+        ) {
+            Text("🌐 Google / 📱 Phone OTP Login or Switch", fontWeight = FontWeight.Bold)
+        }
+
         // Support & Help Button
+        var showSupportChat by remember { mutableStateOf(false) }
+
+        Button(
+            onClick = { showSupportChat = true },
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+        ) {
+            Icon(imageVector = Icons.Default.SupportAgent, contentDescription = null, tint = Color.White)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("💬 Direct Chat with Admin (24x7)", fontWeight = FontWeight.Bold)
+        }
+
         OutlinedButton(
             onClick = { showHelpDialog = true },
             shape = RoundedCornerShape(14.dp),
@@ -224,7 +260,14 @@ fun ProfileScreen(
         ) {
             Icon(imageVector = Icons.Default.SupportAgent, contentDescription = null, tint = GoldAccent)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Help & Support (24x7)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text("Help & Contact Info", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        }
+
+        if (showSupportChat) {
+            SupportChatDialog(
+                viewModel = viewModel,
+                onDismiss = { showSupportChat = false }
+            )
         }
 
         // Notifications List

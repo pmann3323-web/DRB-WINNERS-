@@ -2,7 +2,9 @@ package com.example.data.repository
 
 import com.example.R
 import com.example.data.db.dao.AdDao
+import com.example.data.db.dao.AdminSettingDao
 import com.example.data.db.dao.AnnouncementDao
+import com.example.data.db.dao.ChatMessageDao
 import com.example.data.db.dao.MatchDao
 import com.example.data.db.dao.NotificationDao
 import com.example.data.db.dao.ParticipantDao
@@ -12,7 +14,9 @@ import com.example.data.db.dao.TournamentSeriesDao
 import com.example.data.db.dao.UserDao
 import com.example.data.db.dao.WalletDao
 import com.example.data.db.entity.AdEntity
+import com.example.data.db.entity.AdminSettingEntity
 import com.example.data.db.entity.AnnouncementEntity
+import com.example.data.db.entity.ChatMessageEntity
 import com.example.data.db.entity.MatchEntity
 import com.example.data.db.entity.NotificationEntity
 import com.example.data.db.entity.ParticipantEntity
@@ -23,6 +27,7 @@ import com.example.data.db.entity.TournamentSeriesEntity
 import com.example.data.db.entity.UserEntity
 import com.example.data.db.entity.WalletTransactionEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 
 class TournamentRepository(
@@ -35,7 +40,9 @@ class TournamentRepository(
     private val adDao: AdDao,
     private val notificationDao: NotificationDao,
     private val participantDao: ParticipantDao,
-    private val seriesDao: TournamentSeriesDao
+    private val seriesDao: TournamentSeriesDao,
+    private val chatMessageDao: ChatMessageDao,
+    private val adminSettingDao: AdminSettingDao
 ) {
     val allTournaments: Flow<List<TournamentEntity>> = tournamentDao.getAllTournaments()
     val allSeries: Flow<List<TournamentSeriesEntity>> = seriesDao.getAllSeries()
@@ -46,6 +53,19 @@ class TournamentRepository(
     val allUsers: Flow<List<UserEntity>> = userDao.getAllUsers()
     val pendingTransactions: Flow<List<WalletTransactionEntity>> = walletDao.getPendingTransactions()
     val allTransactions: Flow<List<WalletTransactionEntity>> = walletDao.getAllTransactions()
+    val allChatMessages: Flow<List<ChatMessageEntity>> = chatMessageDao.getAllMessages()
+
+    val depositUpiId: Flow<String> = adminSettingDao.getSettingValue("deposit_upi_id").map {
+        it?.takeIf { str -> str.isNotBlank() } ?: "mannpatel9094@fam"
+    }
+
+    suspend fun updateDepositUpiId(newUpiId: String) {
+        adminSettingDao.saveSetting(AdminSettingEntity("deposit_upi_id", newUpiId.trim()))
+    }
+
+    suspend fun updateTournamentRoomCredentials(tournamentId: Long, roomId: String, roomPassword: String) {
+        tournamentDao.updateRoomCredentials(tournamentId, roomId.trim(), roomPassword.trim())
+    }
 
     fun getSeriesById(seriesId: Long): Flow<TournamentSeriesEntity?> = seriesDao.getSeriesById(seriesId)
     fun getQualifiedSquadsForSeries(seriesId: Long): Flow<List<QualifiedSquadEntity>> = seriesDao.getQualifiedSquadsForSeries(seriesId)
@@ -57,6 +77,38 @@ class TournamentRepository(
 
     fun getUserNotifications(userId: String): Flow<List<NotificationEntity>> =
         notificationDao.getNotificationsForUser(userId)
+
+    fun getChatMessagesForUser(userId: String): Flow<List<ChatMessageEntity>> =
+        chatMessageDao.getMessagesForUser(userId)
+
+    suspend fun sendChatMessage(
+        userId: String,
+        senderId: String,
+        senderName: String,
+        receiverId: String,
+        message: String,
+        isAdmin: Boolean
+    ) {
+        val chatMessage = ChatMessageEntity(
+            userId = userId,
+            senderId = senderId,
+            senderName = senderName,
+            receiverId = receiverId,
+            message = message,
+            timestamp = System.currentTimeMillis(),
+            isAdmin = isAdmin,
+            isRead = false
+        )
+        chatMessageDao.insertMessage(chatMessage)
+    }
+
+    suspend fun markChatAsReadForUser(userId: String, isAdminPerspective: Boolean) {
+        if (isAdminPerspective) {
+            chatMessageDao.markAdminMessagesAsRead(userId)
+        } else {
+            chatMessageDao.markUserMessagesAsRead(userId)
+        }
+    }
 
     fun getTournamentById(id: Long): Flow<TournamentEntity?> = tournamentDao.getTournamentById(id)
 
@@ -340,9 +392,38 @@ class TournamentRepository(
         userDao.setUserBannedStatus(userId, isBanned)
     }
 
-    suspend fun updateUserProfile(userId: String, name: String, email: String, profilePic: String) {
+    suspend fun updateUserProfile(userId: String, name: String, email: String, profilePic: String, phoneNumber: String = "") {
         val user = userDao.getUserById(userId).first() ?: return
-        userDao.updateUser(user.copy(name = name, email = email, profilePic = profilePic))
+        val newPhone = if (phoneNumber.isNotEmpty()) phoneNumber else user.phoneNumber
+        userDao.updateUser(user.copy(name = name, email = email, profilePic = profilePic, phoneNumber = newPhone))
+    }
+
+    suspend fun loginOrRegisterUser(
+        userId: String,
+        name: String,
+        email: String,
+        phoneNumber: String = ""
+    ): UserEntity {
+        val existing = userDao.getUserById(userId).first()
+        if (existing != null) {
+            val updated = existing.copy(
+                name = if (name.isNotEmpty()) name else existing.name,
+                email = if (email.isNotEmpty()) email else existing.email,
+                phoneNumber = if (phoneNumber.isNotEmpty()) phoneNumber else existing.phoneNumber
+            )
+            userDao.updateUser(updated)
+            return updated
+        } else {
+            val newUser = UserEntity(
+                id = userId,
+                name = name.ifEmpty { "Gamer" },
+                email = email.ifEmpty { "user@tournamenthub.com" },
+                phoneNumber = phoneNumber.ifEmpty { "+91 9876543210" },
+                walletBalance = 100.0
+            )
+            userDao.insertUser(newUser)
+            return newUser
+        }
     }
 
     suspend fun addOrUpdateAd(ad: AdEntity): Long {

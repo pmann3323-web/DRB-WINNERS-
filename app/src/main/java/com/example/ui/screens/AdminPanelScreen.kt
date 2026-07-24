@@ -79,6 +79,13 @@ import com.example.ui.theme.GoldAccent
 import com.example.ui.theme.LiveRed
 import com.example.ui.viewmodel.TournamentViewModel
 
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Lock
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminPanelScreen(
@@ -87,7 +94,7 @@ fun AdminPanelScreen(
 ) {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabTitles = listOf("Tournaments", "Esports Series Hub", "Wallet Verification", "User Management", "Ad Management", "Notifications")
+    val tabTitles = listOf("Tournaments", "Deposit QR Control", "Esports Series Hub", "Wallet Verification", "User Management", "Ad Management", "Notifications")
 
     val tournaments by viewModel.allTournaments.collectAsStateWithLifecycle()
     val allSeries by viewModel.allSeries.collectAsStateWithLifecycle()
@@ -188,27 +195,30 @@ fun AdminPanelScreen(
                         viewModel = viewModel,
                         onCreateNew = { showCreateTournamentDialog = true }
                     )
-                    1 -> AdminSeriesTab(
+                    1 -> AdminDepositQrTab(
+                        viewModel = viewModel
+                    )
+                    2 -> AdminSeriesTab(
                         allSeries = allSeries,
                         allQualifiedSquads = allQualifiedSquads,
                         tournaments = tournaments,
                         viewModel = viewModel,
                         onCreateSeries = { showCreateSeriesDialog = true }
                     )
-                    2 -> AdminWalletTab(
+                    3 -> AdminWalletTab(
                         pendingTransactions = pendingTxns,
                         allUsers = allUsers,
                         viewModel = viewModel
                     )
-                    3 -> AdminUsersTab(
+                    4 -> AdminUsersTab(
                         allUsers = allUsers,
                         viewModel = viewModel
                     )
-                    4 -> AdminAdsTab(
+                    5 -> AdminAdsTab(
                         allAds = allAds,
                         viewModel = viewModel
                     )
-                    5 -> AdminNotificationsTab(
+                    6 -> AdminNotificationsTab(
                         onSendBroadcast = { showBroadcastDialog = true }
                     )
                 }
@@ -309,7 +319,9 @@ fun AdminTournamentsTab(
     viewModel: TournamentViewModel,
     onCreateNew: () -> Unit
 ) {
+    val context = LocalContext.current
     var editTournament by remember { mutableStateOf<TournamentEntity?>(null) }
+    var setRoomCredsTournament by remember { mutableStateOf<TournamentEntity?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Button(
@@ -357,6 +369,30 @@ fun AdminTournamentsTab(
                             Text(text = "Status: ${t.status}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = GoldAccent)
                             Text(text = "Teams: ${t.currentTeamsCount}/${t.totalTeams}", fontSize = 12.sp)
                         }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Custom Room ID & Password controls
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "🔑 Room: ${t.roomId} | Pass: ${t.roomPassword}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = GoldAccent
+                            )
+                            OutlinedButton(
+                                onClick = { setRoomCredsTournament = t },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Set Room ID & Pass", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             }
@@ -369,6 +405,8 @@ fun AdminTournamentsTab(
         var prizeText by remember { mutableStateOf(t.prizePool) }
         var entryFeeText by remember { mutableStateOf(t.entryFee.toString()) }
         var statusText by remember { mutableStateOf(t.status) }
+        var roomIdText by remember { mutableStateOf(t.roomId) }
+        var roomPassText by remember { mutableStateOf(t.roomPassword) }
 
         AlertDialog(
             onDismissRequest = { editTournament = null },
@@ -382,6 +420,10 @@ fun AdminTournamentsTab(
                     OutlinedTextField(value = prizeText, onValueChange = { prizeText = it }, label = { Text("Prize Pool") }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(value = statusText, onValueChange = { statusText = it }, label = { Text("Status (UPCOMING/LIVE/COMPLETED)") }, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = roomIdText, onValueChange = { roomIdText = it }, label = { Text("Custom Room ID") }, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = roomPassText, onValueChange = { roomPassText = it }, label = { Text("Custom Room Password") }, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
@@ -392,7 +434,9 @@ fun AdminTournamentsTab(
                                 title = titleText,
                                 entryFee = entryFeeText.toDoubleOrNull() ?: t.entryFee,
                                 prizePool = prizeText,
-                                status = statusText.uppercase()
+                                status = statusText.uppercase(),
+                                roomId = roomIdText.trim(),
+                                roomPassword = roomPassText.trim()
                             )
                         )
                         editTournament = null
@@ -406,6 +450,206 @@ fun AdminTournamentsTab(
                 TextButton(onClick = { editTournament = null }) { Text("Cancel") }
             }
         )
+    }
+
+    if (setRoomCredsTournament != null) {
+        val t = setRoomCredsTournament!!
+        var roomIdInput by remember { mutableStateOf(t.roomId) }
+        var roomPassInput by remember { mutableStateOf(t.roomPassword) }
+
+        AlertDialog(
+            onDismissRequest = { setRoomCredsTournament = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.VpnKey, contentDescription = null, tint = GoldAccent)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Set Custom Room Credentials", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Enter custom Room ID & Password for '${t.title}'. These credentials will be visible to registered players.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = roomIdInput,
+                        onValueChange = { roomIdInput = it },
+                        label = { Text("Custom Room ID") },
+                        placeholder = { Text("e.g. 889104") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = roomPassInput,
+                        onValueChange = { roomPassInput = it },
+                        label = { Text("Custom Room Password") },
+                        placeholder = { Text("e.g. 1234") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (roomIdInput.isNotBlank() && roomPassInput.isNotBlank()) {
+                            viewModel.updateRoomCredentials(t.id, roomIdInput, roomPassInput)
+                            viewModel.sendBroadcastNotification(
+                                "🔑 Room ID Released!",
+                                "Room ID: $roomIdInput | Password: $roomPassInput for ${t.title}"
+                            )
+                            Toast.makeText(context, "Room ID & Password saved & broadcast sent!", Toast.LENGTH_LONG).show()
+                            setRoomCredsTournament = null
+                        } else {
+                            Toast.makeText(context, "Please fill both Room ID and Password", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black)
+                ) {
+                    Text("Save & Notify Players", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { setRoomCredsTournament = null }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
+fun AdminDepositQrTab(
+    viewModel: TournamentViewModel
+) {
+    val context = LocalContext.current
+    val currentUpiId by viewModel.depositUpiId.collectAsStateWithLifecycle()
+    var upiInput by remember(currentUpiId) { mutableStateOf(currentUpiId) }
+
+    val qrBitmap = remember(currentUpiId) {
+        generateUpiQrBitmap(currentUpiId, "100")
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(vertical = 8.dp)
+    ) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.QrCode2,
+                        contentDescription = null,
+                        tint = GoldAccent,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Deposit QR Code & UPI Control",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            text = "Update the deposit UPI ID and auto-generated QR code live",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // QR Code Live Preview
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    modifier = Modifier.size(200.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.White)
+                            .padding(10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (qrBitmap != null) {
+                            Image(
+                                bitmap = qrBitmap.asImageBitmap(),
+                                contentDescription = "Deposit QR Preview",
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.QrCode2,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(80.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Active Deposit UPI VPA: $currentUpiId",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 13.sp,
+                    color = GoldAccent
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = upiInput,
+                    onValueChange = { upiInput = it },
+                    label = { Text("Enter New Deposit UPI ID") },
+                    placeholder = { Text("e.g. 9876543210@paytm or custom@upi") },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GoldAccent,
+                        focusedLabelColor = GoldAccent
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        if (upiInput.isNotBlank()) {
+                            viewModel.updateDepositUpiId(upiInput.trim())
+                            Toast.makeText(context, "Deposit QR Code & UPI ID Updated Live!", Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(context, "Please enter a valid UPI ID", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Save & Apply New Deposit QR Code", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+            }
+        }
     }
 }
 

@@ -360,7 +360,7 @@ fun TransactionItemCard(txn: WalletTransactionEntity) {
     }
 }
 
-private fun generateUpiQrBitmap(upiId: String, amountText: String): Bitmap? {
+internal fun generateUpiQrBitmap(upiId: String, amountText: String): Bitmap? {
     val cleanAmount = amountText.trim()
     val upiUri = if (cleanAmount.isNotBlank() && (cleanAmount.toDoubleOrNull() ?: 0.0) > 0) {
         "upi://pay?pa=$upiId&pn=DRBWINNERS&am=$cleanAmount&cu=INR"
@@ -404,7 +404,7 @@ fun DepositModalDialog(
     val uriHandler = LocalUriHandler.current
     var amountText by remember { mutableStateOf("100") }
     var utrText by remember { mutableStateOf("") }
-    val upiId = "mannpatel9094@fam"
+    val upiId by viewModel.depositUpiId.collectAsStateWithLifecycle()
 
     val qrBitmap = remember(upiId, amountText) {
         generateUpiQrBitmap(upiId, amountText)

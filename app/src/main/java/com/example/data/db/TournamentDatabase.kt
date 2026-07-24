@@ -6,6 +6,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.data.db.dao.AdDao
 import com.example.data.db.dao.AnnouncementDao
+import com.example.data.db.dao.AdminSettingDao
+import com.example.data.db.dao.ChatMessageDao
 import com.example.data.db.dao.MatchDao
 import com.example.data.db.dao.NotificationDao
 import com.example.data.db.dao.ParticipantDao
@@ -15,7 +17,9 @@ import com.example.data.db.dao.UserDao
 import com.example.data.db.dao.WalletDao
 import com.example.data.db.dao.TournamentSeriesDao
 import com.example.data.db.entity.AdEntity
+import com.example.data.db.entity.AdminSettingEntity
 import com.example.data.db.entity.AnnouncementEntity
+import com.example.data.db.entity.ChatMessageEntity
 import com.example.data.db.entity.MatchEntity
 import com.example.data.db.entity.NotificationEntity
 import com.example.data.db.entity.ParticipantEntity
@@ -38,9 +42,11 @@ import com.example.data.db.entity.WalletTransactionEntity
         NotificationEntity::class,
         ParticipantEntity::class,
         TournamentSeriesEntity::class,
-        QualifiedSquadEntity::class
+        QualifiedSquadEntity::class,
+        ChatMessageEntity::class,
+        AdminSettingEntity::class
     ],
-    version = 5,
+    version = 8,
     exportSchema = false
 )
 abstract class TournamentDatabase : RoomDatabase() {
@@ -54,6 +60,8 @@ abstract class TournamentDatabase : RoomDatabase() {
     abstract fun notificationDao(): NotificationDao
     abstract fun participantDao(): ParticipantDao
     abstract fun tournamentSeriesDao(): TournamentSeriesDao
+    abstract fun chatMessageDao(): ChatMessageDao
+    abstract fun adminSettingDao(): AdminSettingDao
 
     companion object {
         @Volatile

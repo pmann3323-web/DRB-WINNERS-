@@ -28,4 +28,7 @@ interface TournamentDao {
 
     @Query("DELETE FROM tournaments WHERE id = :id")
     suspend fun deleteTournamentById(id: Long)
+
+    @Query("UPDATE tournaments SET roomId = :roomId, roomPassword = :roomPassword WHERE id = :tournamentId")
+    suspend fun updateRoomCredentials(tournamentId: Long, roomId: String, roomPassword: String)
 }

@@ -83,7 +83,8 @@ import com.example.ui.viewmodel.TournamentViewModel
 fun HomeScreen(
     viewModel: TournamentViewModel,
     onTournamentClick: (Long) -> Unit,
-    onOpenAdminPanel: () -> Unit
+    onOpenAdminPanel: () -> Unit,
+    onOpenAuth: () -> Unit = {}
 ) {
     var selectedBottomNav by remember { mutableIntStateOf(0) }
     var showSplashAd by remember { mutableStateOf(true) }
@@ -112,8 +113,8 @@ fun HomeScreen(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Image(
-                                painter = painterResource(id = R.drawable.drb_winners_logo_1784792903760),
-                                contentDescription = "DRB WINNERS Logo",
+                                painter = painterResource(id = R.drawable.dangerous_gaming_logo_1784896126024),
+                                contentDescription = "DRB WINNERS Dangerous Gaming Logo",
                                 modifier = Modifier
                                     .size(38.dp)
                                     .clip(CircleShape)
@@ -264,7 +265,11 @@ fun HomeScreen(
                     1 -> MyTournamentsScreen(viewModel = viewModel, onTournamentClick = onTournamentClick)
                     2 -> WalletScreen(viewModel = viewModel)
                     3 -> LeaderboardScreen(viewModel = viewModel)
-                    4 -> ProfileScreen(viewModel = viewModel, onOpenAdminPanel = onOpenAdminPanel)
+                    4 -> ProfileScreen(
+                        viewModel = viewModel,
+                        onOpenAdminPanel = onOpenAdminPanel,
+                        onOpenAuth = onOpenAuth
+                    )
                 }
             }
         }
