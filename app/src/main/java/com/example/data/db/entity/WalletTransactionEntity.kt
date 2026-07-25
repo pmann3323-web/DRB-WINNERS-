@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 data class WalletTransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val userId: String = "user_1",
-    val userName: String = "Mann Patel",
+    val userName: String = "Player One",
     val type: String, // "DEPOSIT", "WITHDRAWAL", "ENTRY_FEE", "WINNING", "REFUND", "BONUS"
     val amount: Double,
     val utrNumber: String = "",

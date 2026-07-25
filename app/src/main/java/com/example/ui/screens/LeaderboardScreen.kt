@@ -120,7 +120,7 @@ fun LeaderboardScreen(
                             fontSize = 11.sp
                         )
                         Text(
-                            text = if (user?.referralCode.isNullOrEmpty() || user?.referralCode == "MANN9094") "SIDHUMOSEWALA" else user!!.referralCode,
+                            text = if (user?.referralCode.isNullOrEmpty()) "SIDHUMOSEWALA" else user!!.referralCode,
                             color = Color.White,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold
@@ -129,7 +129,7 @@ fun LeaderboardScreen(
 
                     Button(
                         onClick = {
-                            val code = if (user?.referralCode.isNullOrEmpty() || user?.referralCode == "MANN9094") "SIDHUMOSEWALA" else user!!.referralCode
+                            val code = if (user?.referralCode.isNullOrEmpty()) "SIDHUMOSEWALA" else user!!.referralCode
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             val clip = ClipData.newPlainText("Referral Code", code)
                             clipboard.setPrimaryClip(clip)

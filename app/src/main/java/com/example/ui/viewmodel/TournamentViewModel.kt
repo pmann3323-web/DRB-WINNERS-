@@ -32,7 +32,8 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
 
     private val repository: TournamentRepository
 
-    val currentUserId = MutableStateFlow("user_1")
+    val currentUserId = MutableStateFlow("user_guest")
+    val isUserLoggedIn = MutableStateFlow(false)
     val isAdminMode = MutableStateFlow(false)
 
     val searchQuery = MutableStateFlow("")
@@ -102,6 +103,17 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
 
         viewModelScope.launch {
             repository.seedInitialDataIfEmpty()
+        }
+
+        val prefs = application.getSharedPreferences("drb_auth_prefs", android.content.Context.MODE_PRIVATE)
+        val savedUserId = prefs.getString("user_id", null)
+        val savedLoggedIn = prefs.getBoolean("is_logged_in", false)
+        if (savedLoggedIn && !savedUserId.isNullOrEmpty()) {
+            currentUserId.value = savedUserId
+            isUserLoggedIn.value = true
+        } else {
+            currentUserId.value = "user_guest"
+            isUserLoggedIn.value = false
         }
 
         currentUser = currentUserId.flatMapLatest { id ->
@@ -189,7 +201,7 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         depositUpiId = repository.depositUpiId.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = "mannpatel9094@fam"
+            initialValue = "drbwinners@upi"
         )
 
         allTournaments = combine(
@@ -346,6 +358,13 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    private fun saveUserSession(userId: String) {
+        val prefs = getApplication<Application>().getSharedPreferences("drb_auth_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("is_logged_in", true).putString("user_id", userId).apply()
+        currentUserId.value = userId
+        isUserLoggedIn.value = true
+    }
+
     fun loginWithPhone(phoneNumber: String, name: String = "Player", onDone: () -> Unit) {
         viewModelScope.launch {
             val cleanPhone = phoneNumber.trim()
@@ -356,22 +375,190 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
                 email = "user_${cleanPhone.takeLast(4)}@tournamenthub.com",
                 phoneNumber = cleanPhone
             )
-            currentUserId.value = userId
+            saveUserSession(userId)
             onDone()
         }
     }
 
-    fun loginWithGoogle(accountName: String, accountEmail: String, photoUrl: String = "", onDone: () -> Unit) {
+    fun loginWithGoogle(accountName: String, accountEmail: String, photoUrl: String = "", profilePic: String = "", onDone: () -> Unit) {
         viewModelScope.launch {
-            val userId = "user_google_${accountEmail.replace("@", "_").replace(".", "_")}"
+            val cleanEmail = accountEmail.trim().lowercase()
+            val cleanName = if (accountName.isNotBlank()) accountName else cleanEmail.substringBefore("@").replace(".", " ").replaceFirstChar { it.uppercase() }
+            
+            // Sync user with Firebase Authentication API
+            val firebasePass = "GoogleAuth#2026!"
+            var firebaseResult = com.example.data.auth.FirebaseAuthManager.signUpWithEmail(cleanEmail, firebasePass)
+            if (!firebaseResult.isSuccess) {
+                firebaseResult = com.example.data.auth.FirebaseAuthManager.signInWithEmail(cleanEmail, firebasePass)
+            }
+            
+            val firebaseUid = firebaseResult.localId
+            val userId = if (!firebaseUid.isNullOrBlank()) "user_firebase_$firebaseUid" else "user_google_${cleanEmail.replace("@", "_").replace(".", "_")}"
+
             repository.loginOrRegisterUser(
                 userId = userId,
-                name = accountName,
-                email = accountEmail,
-                phoneNumber = "+91 9876543210"
+                name = cleanName,
+                email = cleanEmail,
+                phoneNumber = "",
+                profilePic = profilePic
             )
-            currentUserId.value = userId
+            saveUserSession(userId)
             onDone()
+        }
+    }
+
+    fun checkEmailVerificationStatus(
+        email: String,
+        password: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val cleanEmail = email.trim()
+            val cleanPass = password.trim()
+            if (cleanEmail.isBlank()) {
+                onResult(false, "Please enter your email address")
+                return@launch
+            }
+            val result = com.example.data.auth.FirebaseAuthManager.signInWithEmail(cleanEmail, cleanPass)
+            if (result.isSuccess && result.idToken != null) {
+                val isVerified = com.example.data.auth.FirebaseAuthManager.checkEmailVerified(result.idToken)
+                if (isVerified) {
+                    val userId = "user_firebase_${result.localId ?: result.email?.replace("@", "_")?.replace(".", "_")}"
+                    repository.loginOrRegisterUser(
+                        userId = userId,
+                        name = result.email?.substringBefore("@") ?: "Player",
+                        email = result.email ?: cleanEmail,
+                        phoneNumber = ""
+                    )
+                    saveUserSession(userId)
+                    onResult(true, "Email verified successfully!")
+                } else {
+                    onResult(false, "Email is not verified yet. Please check your inbox and click the link.")
+                }
+            } else {
+                onResult(false, "Email is not verified yet. Please check your inbox or sign in.")
+            }
+        }
+    }
+
+    fun resendVerificationEmail(
+        email: String,
+        password: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val cleanEmail = email.trim()
+            val cleanPass = password.trim()
+            val result = com.example.data.auth.FirebaseAuthManager.signInWithEmail(cleanEmail, cleanPass)
+            if (result.isSuccess && result.idToken != null) {
+                val res = com.example.data.auth.FirebaseAuthManager.sendEmailVerification(result.idToken)
+                if (res.isSuccess) {
+                    onResult(true, "Verification link sent to $cleanEmail!")
+                } else {
+                    onResult(false, "Failed to send verification email.")
+                }
+            } else {
+                onResult(false, "Could not send verification email. Please check your details.")
+            }
+        }
+    }
+
+    enum class FirebaseAuthStatus {
+        SUCCESS,
+        UNVERIFIED_EMAIL,
+        ERROR
+    }
+
+    fun firebaseSignInWithEmail(
+        email: String,
+        password: String,
+        onResult: (FirebaseAuthStatus, String?, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = com.example.data.auth.FirebaseAuthManager.signInWithEmail(email, password)
+            if (result.isSuccess && result.email != null && result.idToken != null) {
+                val isVerified = com.example.data.auth.FirebaseAuthManager.checkEmailVerified(result.idToken)
+                if (isVerified) {
+                    val userId = "user_firebase_${result.localId ?: result.email.replace("@", "_").replace(".", "_")}"
+                    repository.loginOrRegisterUser(
+                        userId = userId,
+                        name = result.email.substringBefore("@"),
+                        email = result.email,
+                        phoneNumber = ""
+                    )
+                    saveUserSession(userId)
+                    onResult(FirebaseAuthStatus.SUCCESS, null, result.email)
+                } else {
+                    // Send verification email again if not verified
+                    com.example.data.auth.FirebaseAuthManager.sendEmailVerification(result.idToken)
+                    onResult(FirebaseAuthStatus.UNVERIFIED_EMAIL, null, result.email)
+                }
+            } else {
+                onResult(FirebaseAuthStatus.ERROR, result.errorMessage ?: "Email or password is incorrect", null)
+            }
+        }
+    }
+
+    fun firebaseSignUpWithEmail(
+        email: String,
+        password: String,
+        onResult: (FirebaseAuthStatus, String?, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = com.example.data.auth.FirebaseAuthManager.signUpWithEmail(email, password)
+            if (result.isSuccess && result.email != null && result.idToken != null) {
+                com.example.data.auth.FirebaseAuthManager.sendEmailVerification(result.idToken)
+                val userId = "user_firebase_${result.localId ?: result.email.replace("@", "_").replace(".", "_")}"
+                repository.loginOrRegisterUser(
+                    userId = userId,
+                    name = result.email.substringBefore("@"),
+                    email = result.email,
+                    phoneNumber = ""
+                )
+                // DO NOT sign them in automatically!
+                onResult(FirebaseAuthStatus.UNVERIFIED_EMAIL, null, result.email)
+            } else {
+                onResult(FirebaseAuthStatus.ERROR, result.errorMessage ?: "User already exists. Please sign in", null)
+            }
+        }
+    }
+
+    fun firebaseSignUpFull(
+        fullName: String,
+        username: String,
+        email: String,
+        phone: String,
+        password: String,
+        profilePic: String = "",
+        onResult: (FirebaseAuthStatus, String?, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = com.example.data.auth.FirebaseAuthManager.signUpWithEmail(email, password)
+            if (result.isSuccess && result.email != null && result.idToken != null) {
+                com.example.data.auth.FirebaseAuthManager.sendEmailVerification(result.idToken)
+                val userId = "user_firebase_${result.localId ?: result.email.replace("@", "_").replace(".", "_")}"
+                val displayName = fullName.ifBlank { username.ifBlank { result.email.substringBefore("@") } }
+                repository.loginOrRegisterUser(
+                    userId = userId,
+                    name = displayName,
+                    email = result.email,
+                    phoneNumber = phone.ifBlank { "+91 9876543210" }
+                )
+                // DO NOT sign them in automatically!
+                onResult(FirebaseAuthStatus.UNVERIFIED_EMAIL, null, result.email)
+            } else {
+                onResult(FirebaseAuthStatus.ERROR, result.errorMessage ?: "User already exists. Please sign in", null)
+            }
+        }
+    }
+
+    fun firebaseSendPasswordResetEmail(
+        email: String,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = com.example.data.auth.FirebaseAuthManager.sendPasswordResetEmail(email)
+            onResult(result.isSuccess, result.errorMessage)
         }
     }
 
@@ -385,13 +572,16 @@ class TournamentViewModel(application: Application) : AndroidViewModel(applicati
                 email = cleanEmail,
                 phoneNumber = "+91 9876543210"
             )
-            currentUserId.value = userId
+            saveUserSession(userId)
             onDone()
         }
     }
 
     fun logoutUser() {
+        val prefs = getApplication<Application>().getSharedPreferences("drb_auth_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("is_logged_in", false).remove("user_id").apply()
         currentUserId.value = "user_guest"
+        isUserLoggedIn.value = false
     }
 
     fun createTournament(

@@ -19,6 +19,10 @@ import com.example.ui.screens.TournamentDetailScreen
 import com.example.ui.theme.TournamentHubTheme
 import com.example.ui.viewmodel.TournamentViewModel
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 sealed class Screen {
     object Auth : Screen()
     object Home : Screen()
@@ -37,7 +41,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             TournamentHubTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
+                    val isUserLoggedIn by viewModel.isUserLoggedIn.collectAsStateWithLifecycle()
+                    var currentScreen by remember {
+                        mutableStateOf<Screen>(if (isUserLoggedIn) Screen.Home else Screen.Auth)
+                    }
+
+                    LaunchedEffect(isUserLoggedIn) {
+                        if (!isUserLoggedIn) {
+                            currentScreen = Screen.Auth
+                        } else if (currentScreen == Screen.Auth) {
+                            currentScreen = Screen.Home
+                        }
+                    }
 
                     when (val screen = currentScreen) {
                         is Screen.Auth -> {

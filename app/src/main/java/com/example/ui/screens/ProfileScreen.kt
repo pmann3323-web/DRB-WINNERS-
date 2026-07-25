@@ -223,6 +223,23 @@ fun ProfileScreen(
             )
         }
 
+        // Log Out Button
+        Button(
+            onClick = {
+                viewModel.logoutUser()
+                Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
+                onOpenAuth()
+            },
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = com.example.ui.theme.LiveRed, contentColor = Color.White),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+                .testTag("logout_button")
+        ) {
+            Text("🔒 Log Out (Sign Out)", fontWeight = FontWeight.Bold)
+        }
+
         // Account Auth / Switch Account Button
         Button(
             onClick = onOpenAuth,
@@ -232,7 +249,7 @@ fun ProfileScreen(
                 .fillMaxWidth()
                 .padding(bottom = 12.dp)
         ) {
-            Text("🌐 Google / 📱 Phone OTP Login or Switch", fontWeight = FontWeight.Bold)
+            Text("🌐 Switch Account / Auth Options", fontWeight = FontWeight.Bold)
         }
 
         // Support & Help Button
@@ -391,7 +408,7 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("• Email Support: support@tournamenthub.com", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     Text("• Telegram: @TournamentHubHelp", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    Text("• UPI Merchant ID: mannpatel9094@fam", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("• UPI Merchant ID: drbwinners@upi", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
             },
             confirmButton = {

@@ -56,7 +56,7 @@ class TournamentRepository(
     val allChatMessages: Flow<List<ChatMessageEntity>> = chatMessageDao.getAllMessages()
 
     val depositUpiId: Flow<String> = adminSettingDao.getSettingValue("deposit_upi_id").map {
-        it?.takeIf { str -> str.isNotBlank() } ?: "mannpatel9094@fam"
+        it?.takeIf { str -> str.isNotBlank() } ?: "drbwinners@upi"
     }
 
     suspend fun updateDepositUpiId(newUpiId: String) {
@@ -285,7 +285,7 @@ class TournamentRepository(
                 type = "DEPOSIT",
                 amount = amount,
                 utrNumber = utrNumber,
-                upiId = "mannpatel9094@fam",
+                upiId = "drbwinners@upi",
                 status = "PENDING",
                 note = "Deposit request via UPI UTR: $utrNumber"
             )
@@ -402,14 +402,16 @@ class TournamentRepository(
         userId: String,
         name: String,
         email: String,
-        phoneNumber: String = ""
+        phoneNumber: String = "",
+        profilePic: String = ""
     ): UserEntity {
         val existing = userDao.getUserById(userId).first()
         if (existing != null) {
             val updated = existing.copy(
                 name = if (name.isNotEmpty()) name else existing.name,
                 email = if (email.isNotEmpty()) email else existing.email,
-                phoneNumber = if (phoneNumber.isNotEmpty()) phoneNumber else existing.phoneNumber
+                phoneNumber = if (phoneNumber.isNotEmpty()) phoneNumber else existing.phoneNumber,
+                profilePic = if (profilePic.isNotEmpty()) profilePic else existing.profilePic
             )
             userDao.updateUser(updated)
             return updated
@@ -418,7 +420,8 @@ class TournamentRepository(
                 id = userId,
                 name = name.ifEmpty { "Gamer" },
                 email = email.ifEmpty { "user@tournamenthub.com" },
-                phoneNumber = phoneNumber.ifEmpty { "+91 9876543210" },
+                phoneNumber = phoneNumber,
+                profilePic = profilePic,
                 walletBalance = 100.0
             )
             userDao.insertUser(newUser)
@@ -793,7 +796,7 @@ class TournamentRepository(
         )
 
         // Find winner user and credit prize wallet
-        val user = userDao.getAllUsers().first().find { it.name.contains(winnerCaptain, ignoreCase = true) || it.name.contains("Mann", ignoreCase = true) }
+        val user = userDao.getAllUsers().first().find { it.name.contains(winnerCaptain, ignoreCase = true) }
         if (user != null && series.firstPrize > 0) {
             val prizeAmount = series.firstPrize + (winnerKills * series.perKillPrize)
             userDao.updateWalletBalance(user.id, prizeAmount)
@@ -832,8 +835,8 @@ class TournamentRepository(
             userDao.insertUser(
                 UserEntity(
                     id = "user_1",
-                    name = "Mann Patel",
-                    email = "mannpatel9094@gmail.com",
+                    name = "Player One",
+                    email = "player1@drbwinners.com",
                     walletBalance = 500.0,
                     referralCode = "SIDHUMOSEWALA",
                     role = "USER",
@@ -958,7 +961,7 @@ class TournamentRepository(
                             qualifierTournamentId = qId,
                             qualifierRoomName = "Qualifier #$i",
                             squadName = if (i == 1) "Total Gaming Esports" else "Desi Gamers Squad",
-                            captainName = if (i == 1) "Mann Patel" else "Amitbhai",
+                            captainName = if (i == 1) "Captain Alpha" else "Amitbhai",
                             userId = "user_1",
                             inGameId = "FF-UID-9988",
                             qualifierRank = 1,
@@ -998,7 +1001,7 @@ class TournamentRepository(
             ParticipantEntity(
                 tournamentId = t1Id,
                 userId = "user_1",
-                userName = "Mann Patel",
+                userName = "Captain Alpha",
                 teamName = "Total Gaming Esports",
                 inGameId = "BGMI-998877",
                 entryFeePaid = 100.0
